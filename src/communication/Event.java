@@ -1,18 +1,15 @@
 package communication;
 
-import java.util.Random;
 
 public class Event {
 	
-	protected int processId;
-	protected int logicalClock;
-	protected int eventId;
-	protected String senderIp;
+	protected Integer processId;
+	protected Integer logicalClock;
+	protected String eventId;
 	
 	public Event(int PID, int logClock) {
-		Random rnd= new Random();
 		processId=PID;
 		logicalClock=logClock;
-		eventId=rnd.nextInt();
+		eventId=logicalClock.toString()+"."+processId.toString();
 	}
 }
