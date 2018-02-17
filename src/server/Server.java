@@ -1,6 +1,5 @@
 package server;
 
-import java.util.Random;
 import java.util.concurrent.ConcurrentMap;
 
 import communication.LamportAlgorithm;
@@ -10,13 +9,10 @@ public class Server {
 	
 	private ConcurrentMap<Integer, Integer> database;
 	private int processId;
-	private int logicalClock;
 	private LamportAlgorithm lamportAlgorithm;
 	
-	public Server(int groupLength) {
-		Random rnd = new Random();
-		processId = rnd.nextInt();
-		logicalClock = 0;
+	public Server(int processId, int groupLength) {
+		this.processId = processId;
 		lamportAlgorithm = new LamportAlgorithm(processId, groupLength, this);
 	}
 	
@@ -25,15 +21,15 @@ public class Server {
 	}
 	
 	public void write(int dataId, int integerValue) {
-		logicalClock++;
-		Message message = new Message(processId, logicalClock, dataId, integerValue);
-		lamportAlgorithm.write(message);
+		lamportAlgorithm.write(dataId, integerValue, processId);
 	}
 	
 	public void updateDatabase(Message message) {
 		database.put(message.getDataId(), message.getIntegerValue());
 	}
 	
-	
+	public void incrementLogicalClock() {
+		
+	}
 	
 }

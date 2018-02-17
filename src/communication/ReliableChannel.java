@@ -22,6 +22,7 @@ public class ReliableChannel {
 	private ExecutorService threadPool;
 	private Integer groupLength;
 	private final Integer processId;
+	private LamportAlgorithm lamportAlgorithm;
 
 	/**
 	 * The key of the element represents the process id, the value is the last
@@ -36,7 +37,8 @@ public class ReliableChannel {
 	 */
 	private ConcurrentMap<Integer, Event> historyBuffer;
 
-	public ReliableChannel(int processId, int groupLength) {
+	public ReliableChannel(int processId, int groupLength, LamportAlgorithm lamportAlgorithm) {
+		this.lamportAlgorithm = lamportAlgorithm;
 		this.groupLength = groupLength;
 		this.processId = processId;
 		this.historyBuffer = new ConcurrentHashMap<Integer, Event>();

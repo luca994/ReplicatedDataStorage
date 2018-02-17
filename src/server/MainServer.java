@@ -15,7 +15,9 @@ public class MainServer{
 			int port = scan.nextInt();
 			System.out.println("Inserisci la grandezza del gruppo:\n");
 			int groupLength = scan.nextInt();
-			Server server = new Server(groupLength);
+			System.out.println("Inserisci il tuo id\n");
+			int processId = scan.nextInt();
+			Server server = new Server(processId, groupLength);
 			LocateRegistry.createRegistry(port);
 			ServerRemote serverMethods = new ServerRemote(server);
 			Naming.rebind("ServerRemote", serverMethods);

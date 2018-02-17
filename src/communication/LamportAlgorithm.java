@@ -11,37 +11,40 @@ public class LamportAlgorithm {
 	private ReliableChannel reliableChannel;
 	private PriorityBlockingQueue<Message> writeQueue;
 	private ConcurrentMap<String, Integer> ackCount;
-	private int ackToDelivery;
+	private int groupSize;
+	private int logicalClock;
 	private Server server;
 	
 	public LamportAlgorithm(int processId, int groupLength, Server server) {
+		logicalClock = 0;
 		this.server = server;
 		Comparator<Message> c = new Order();
-		ackToDelivery = groupLength;
+		groupSize = groupLength;
 		writeQueue = new PriorityBlockingQueue<>(11, c);
-		reliableChannel = new ReliableChannel(processId, groupLength);
+		reliableChannel = new ReliableChannel(processId, groupLength, this);
 	}
 	
-	public void write(Message message) {
-		writeQueue.put(message);
-		ackCount.put(message.getEventId(), 1);
+	public synchronized void write(int dataId, int integerValue, int processId) {
+		logicalClock++;
+		Message message = new Message(processId, logicalClock, dataId, integerValue);
+		logicalClock++;
+		Ack ack = new Ack(processId, logicalClock);
 		reliableChannel.sendMessage(message, false);
-		reliableChannel.sendMessage(new Ack(message.getProcessId(), message.getLogicalClock()), false);
+		reliableChannel.sendMessage(ack, false);
 	}
 	
 	public void receiveEvent(Event e) {
 		if(e instanceof Message)
 			messageHandler((Message) e);
-		else if(e instanceof Ack)
-			ackHandler((Ack) e);
+		else if(e instanceof LamportAck)
+			ackHandler((LamportAck) e);
 	}
 	
 	public void messageHandler(Message m) {
 		writeQueue.put(m);
-		//multicast acknowledgment
 	}
 	
-	public void ackHandler(Ack a) {
+	public void ackHandler(LamportAck a) {
 		
 	}
 	
