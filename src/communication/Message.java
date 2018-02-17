@@ -10,4 +10,11 @@ public class Message extends Event {
 		dataId=dId;
 		integerValue=intVal;
 	}
+
+	@Override
+	public String toString() {
+		return "Message [eventId=" + eventId + "]";
+	}
+	
+	
 }

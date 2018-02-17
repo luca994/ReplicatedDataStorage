@@ -12,4 +12,16 @@ public class Event {
 		logicalClock=logClock;
 		eventId=logicalClock.toString()+"."+processId.toString();
 	}
+	
+	public String getEventId() {
+		return eventId;
+	}
+	
+	public int getProcessId() {
+		return processId.intValue();
+	}
+	
+	public int getLogicalClock() {
+		return logicalClock.intValue();
+	}
 }
