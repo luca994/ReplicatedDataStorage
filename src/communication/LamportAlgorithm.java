@@ -6,16 +6,15 @@ import java.util.concurrent.PriorityBlockingQueue;
 public class LamportAlgorithm {
 	
 	//private ReliableChannel reliableChannel
-	//private ConcurrentLinkedQueue<Message> writeQueue;
-	private PriorityBlockingQueue<Message> database; 
+	private PriorityBlockingQueue<Message> writeQueue; 
 	
 	public LamportAlgorithm() {
 		Comparator<Message> c = new Order();
-		database = new PriorityBlockingQueue<>(11, c);
+		writeQueue = new PriorityBlockingQueue<>(11, c);
 	}
 	
 	public void write(Message message) {
-		database.put(message);
+		writeQueue.put(message);
 	}
 	
 	
