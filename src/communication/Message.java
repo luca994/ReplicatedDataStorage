@@ -23,6 +23,4 @@ public class Message extends Event {
 	public int getIntegerValue() {
 		return integerValue;
 	}
-	
-	
 }

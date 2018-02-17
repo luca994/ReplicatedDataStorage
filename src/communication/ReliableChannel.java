@@ -37,10 +37,18 @@ public class ReliableChannel {
 	 */
 	private ConcurrentMap<Integer, Event> historyBuffer;
 
+	/**
+	 * The key of the element represents the logicalClock, the value is the
+	 * corresponding acks received
+	 * 
+	 */
+	private ConcurrentMap<Integer, Integer> acksReceived;
+
 	public ReliableChannel(int processId, int groupLength, LamportAlgorithm lamportAlgorithm) {
 		this.lamportAlgorithm = lamportAlgorithm;
 		this.groupLength = groupLength;
 		this.processId = processId;
+		this.acksReceived = new ConcurrentHashMap<Integer, Integer>();
 		this.historyBuffer = new ConcurrentHashMap<Integer, Event>();
 		this.currentClock = new ConcurrentHashMap<Integer, Integer>(groupLength);
 		for (int i = 1; i <= groupLength; i++) {
@@ -53,10 +61,6 @@ public class ReliableChannel {
 		multicastSocket.joinGroup(InetAddress.getByName(multicastAddress));
 	}
 
-	private void incrementSNandManageHistory() {
-
-	}
-
 	/**
 	 * Set logicalClock to the object, then sends it to the multicast group, it adds
 	 * the message to the historyBuffer then returns. We have added a limit of 128
@@ -66,12 +70,15 @@ public class ReliableChannel {
 	 *            the message to be sent
 	 * @throws IOException
 	 */
-	public synchronized void sendMessage(Event msg, boolean retransmission) {
-		if (!retransmission) {
-			Integer clock = currentClock.get(processId) + 1;
+
+	public synchronized void sendMessage(Event msg, boolean ackOrNack) {
+		Integer clock = currentClock.get(processId);
+		Integer msgClock = msg.getLogicalClock();
+		if (clock < msgClock)
 			currentClock.replace(processId, clock);
-			msg.setLogicalClock(clock);
+		if (!ackOrNack) {
 			historyBuffer.put(clock, msg);
+			acksReceived.put(clock, 0);
 		}
 		try {
 			ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
@@ -127,7 +134,7 @@ public class ReliableChannel {
 
 	private void manageNackReceived(Nack nack) {
 		if (nack.getProcessId() == processId)
-			sendMessage(historyBuffer.get(nack.getTargetClock()), true);
+			sendMessage(historyBuffer.get(nack.getTargetClock()), false);
 		else
 			return;
 	}
@@ -135,23 +142,30 @@ public class ReliableChannel {
 	private void manageMessageReceived(Message message) {
 		Integer msgClock = message.getLogicalClock();
 		Integer msgPid = message.getProcessId();
-		if (msgClock <= currentClock.get(msgPid)
-				|| message.getProcessId() == processId)
+		if (message.getProcessId() == processId)
 			return;
 		else {
 			checkAndManageClock(message);
 			Ack ack = new Ack(processId, 0);
 			ack.setTargetClock(msgClock);
 			ack.setTargetProcId(msgPid);
-			sendMessage(ack,true);
+			sendMessage(ack, true);
 		}
 	}
 
-	private void manageAckReceived(Ack ack) {
-		if(ack.getProcessId() == processId || ack.getTargetProcId()!= processId)
+	private synchronized void manageAckReceived(Ack ack) {
+		Integer targetClock = ack.getTargetClock();
+		if (ack.getProcessId() == processId || ack.getTargetProcId() != processId)
 			return;
 		else {
-			
+			Integer numberOfAcks = acksReceived.get(targetClock);
+			numberOfAcks++;
+			acksReceived.replace(targetClock, numberOfAcks);
+			if (numberOfAcks == groupLength - 1) {
+				System.out.println("Message with clock: " + targetClock + " received");
+				historyBuffer.remove(targetClock);
+				acksReceived.remove(targetClock);
+			}
 		}
 	}
 
