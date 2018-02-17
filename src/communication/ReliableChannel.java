@@ -68,7 +68,8 @@ public class ReliableChannel {
 	 *            the message to be sent
 	 * @throws IOException
 	 */
-	private synchronized void sendMessage(Event msg, boolean ackOrNack) {
+
+	public synchronized void sendMessage(Event msg, boolean ackOrNack) {
 		Integer clock = currentClock.get(processId);
 		Integer msgClock = msg.getLogicalClock();
 		if (clock < msgClock)
