@@ -25,8 +25,8 @@ public class ReliableChannel {
 	private Timer timer;
 	private MulticastSocket multicastSocket;
 	private ExecutorService threadPool;
-	private int groupLength;
-	private final int processId;
+	private Integer groupLength;
+	private final Integer processId;
 
 	/*
 	 * The key of the element represents the process id, the value is the last SN
@@ -91,6 +91,9 @@ public class ReliableChannel {
 	}
 	
 	private void dispatcherReceivedEvent(Event e) {
+		Integer pid = e.getProcessId();
+		Integer sn = currentSN.get(pid);
+		currentSN.replace(e.getProcessId, value)
 		if(e instanceof Ack) {
 			manageAckReceived((Ack)e);
 			return;
@@ -105,7 +108,9 @@ public class ReliableChannel {
 		}	
 	}
 	
-	private void manageAckReceived(Ack ack) {}
+	private void manageAckReceived(Ack ack) {
+		
+	}
 	private void manageNackReceived(Nack nack) {}
 	private void manageMessageReceived(Message message) {}
 	
