@@ -23,34 +23,26 @@ public class ReliableChannel {
 	private Integer groupLength;
 	private final Integer processId;
 
-	/*
-	 * The key of the element represents the process id, the value is the last SN
-	 * received from that process
+	/**
+	 * The key of the element represents the process id, the value is the last
+	 * logicalclock received from that process
 	 */
-	private ConcurrentMap<Integer, Integer> currentSN;
+	private ConcurrentMap<Integer, Integer> currentClock;
 
-	/*
-	 * The key of the element represents the transmission sequence number, the value
-	 * is the corresponding message
+	/**
+	 * The key of the element represents the logicalClock, the value is the
+	 * corresponding message
 	 * 
 	 */
 	private ConcurrentMap<Integer, Event> historyBuffer;
-
-	/*
-	 * The key of the element represents the transmission sequence number, the value
-	 * is the number of acknowledgements received
-	 * 
-	 */
-	private ConcurrentMap<Integer, Integer> ackReceived;
 
 	public ReliableChannel(int processId, int groupLength) {
 		this.groupLength = groupLength;
 		this.processId = processId;
 		this.historyBuffer = new ConcurrentHashMap<Integer, Event>();
-		this.currentSN = new ConcurrentHashMap<Integer, Integer>(groupLength);
-		this.ackReceived = new ConcurrentHashMap<Integer, Integer>();
+		this.currentClock = new ConcurrentHashMap<Integer, Integer>(groupLength);
 		for (int i = 1; i <= groupLength; i++) {
-			currentSN.put(i, 0);
+			currentClock.put(i, 0);
 		}
 	}
 
@@ -59,65 +51,113 @@ public class ReliableChannel {
 		multicastSocket.joinGroup(InetAddress.getByName(multicastAddress));
 	}
 
+	private void incrementSNandManageHistory() {
+
+	}
+
 	/**
-	 * Sends a Message object to the multicast group, then returns
-	 * We have added a limit of 128 bytes for a datagram packet
+	 * Set logicalClock to the object, then sends it to the multicast group, it adds
+	 * the message to the historyBuffer then returns. We have added a limit of 128
+	 * bytes for a datagram packet.
+	 * 
 	 * @param msg
 	 *            the message to be sent
 	 * @throws IOException
 	 */
-	public synchronized void sendMessage(Event msg) throws IOException {
-		Integer sn = currentSN.get(processId) + 1;
-		currentSN.replace(processId, sn);
-		msg.setTransmissionSequence(sn);
-		historyBuffer.put(sn, msg);
-		ackReceived.put(sn, 0);
+	public synchronized void sendMessage(Event msg, boolean retransmission) {
+		if (!retransmission) {
+			Integer clock = currentClock.get(processId) + 1;
+			currentClock.replace(processId, clock);
+			msg.setLogicalClock(clock);
+			historyBuffer.put(clock, msg);
+		}
+		try {
+			ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
+			ObjectOutput out = null;
+			out = new ObjectOutputStream(bos);
+			out.writeObject(msg);
+			out.flush();
+			byte[] bytes = bos.toByteArray();
+			DatagramPacket packet = new DatagramPacket(bytes, bytes.length, multicastSocket.getInetAddress(),
+					multicastSocket.getLocalPort());
+			multicastSocket.send(packet);
+			bos.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 
-		ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
-		ObjectOutput out = null;
-		out = new ObjectOutputStream(bos);
-		out.writeObject(msg);
-		out.flush();
-		byte[] bytes = bos.toByteArray();
-		DatagramPacket packet = new DatagramPacket(bytes, bytes.length, multicastSocket.getInetAddress(),
-				multicastSocket.getLocalPort());
-		multicastSocket.send(packet);
-		bos.close();
-	}
-	
-	private void dispatcherReceivedEvent(Event e) {
+	/**
+	 * This method checks if there are some lost message between the received one
+	 * and the last message received from that process and sends the Nacks Then it
+	 * updates the sequence number corresponding to the process.
+	 * 
+	 * @param e
+	 */
+	private void checkAndManageClock(Event e) {
 		Integer epid = e.getProcessId();
-		Integer esn = e.getTransmissionSequence();
-		Integer currEsn = currentSN.get(epid);
-		if(esn - currEsn == 1)
-			currentSN.replace(epid, esn);
-	//	else
-	//		sendMessage(Nack)
-		if(e instanceof Ack) {
-			manageAckReceived((Ack)e);
-			return;
+		Integer eClock = e.getLogicalClock();
+		Integer currEclock = currentClock.get(epid);
+		for (int i = currEclock; i < eClock - 1; i++) {
+			Nack nack = new Nack(processId, 0);
+			nack.setTargetClock(i);
+			nack.setTargetProcId(epid);
+			sendMessage(nack, true);
 		}
-		if(e instanceof Nack) {
-			manageNackReceived((Nack)e);
-			return;
-		}
-		if(e instanceof Message) {
-			manageMessageReceived((Message)e);
-			return;
-		}	
+		currentClock.replace(epid, eClock);
 	}
-	
+
+	private void dispatcherReceivedEvent(Event e) {
+
+		if (e instanceof Ack) {
+			manageAckReceived((Ack) e);
+			return;
+		}
+		if (e instanceof Nack) {
+			manageNackReceived((Nack) e);
+			return;
+		}
+		if (e instanceof Message) {
+			manageMessageReceived((Message) e);
+			return;
+		}
+	}
+
+	private void manageNackReceived(Nack nack) {
+		if (nack.getProcessId() == processId)
+			sendMessage(historyBuffer.get(nack.getTargetClock()), true);
+		else
+			return;
+	}
+
+	private void manageMessageReceived(Message message) {
+		Integer msgClock = message.getLogicalClock();
+		Integer msgPid = message.getProcessId();
+		if (msgClock <= currentClock.get(msgPid)
+				|| message.getProcessId() == processId)
+			return;
+		else {
+			checkAndManageClock(message);
+			Ack ack = new Ack(processId, 0);
+			ack.setTargetClock(msgClock);
+			ack.setTargetProcId(msgPid);
+			sendMessage(ack,true);
+		}
+	}
+
 	private void manageAckReceived(Ack ack) {
-		
+		if(ack.getProcessId() == processId || ack.getTargetProcId()!= processId)
+			return;
+		else {
+			
+		}
 	}
-	private void manageNackReceived(Nack nack) {}
-	private void manageMessageReceived(Message message) {}
-	
+
 	private class Receiver implements Runnable {
 		@Override
-		public void run () {
-			byte [] bytesBuffer = new byte[128];
-			DatagramPacket packet = new DatagramPacket (bytesBuffer,bytesBuffer.length);
+		public void run() {
+			byte[] bytesBuffer = new byte[128];
+			DatagramPacket packet = new DatagramPacket(bytesBuffer, bytesBuffer.length);
 			try {
 				while (true) {
 					multicastSocket.receive(packet);
@@ -133,7 +173,5 @@ public class ReliableChannel {
 			}
 		}
 	}
-	
-	
-}
 
+}

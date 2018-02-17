@@ -6,14 +6,9 @@ public class Event {
 	protected Integer processId;
 	protected Integer logicalClock;
 	protected String eventId;
-	private Integer transmissionSN; /* Sequence number used for enumerate the transmission */
-	
-	public int getTransmissionSequence() {
-		return (int)transmissionSN;
-	}
 
-	public void setTransmissionSequence(Integer transmissionSequence) {
-		this.transmissionSN = transmissionSequence;
+	public void setLogicalClock(Integer logicalClock) {
+		this.logicalClock = logicalClock;
 	}
 
 	public Event(int PID, int logClock) {

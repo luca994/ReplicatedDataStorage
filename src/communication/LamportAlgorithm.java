@@ -1,6 +1,5 @@
 package communication;
 
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -24,14 +23,10 @@ public class LamportAlgorithm {
 	}
 	
 	public void write(Message message) {
-		try {
-			writeQueue.put(message);
-			ackCount.put(message.getEventId(), 1);
-			reliableChannel.sendMessage(message);
-			reliableChannel.sendMessage(new Ack(message.getProcessId(), message.getLogicalClock()));
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		writeQueue.put(message);
+		ackCount.put(message.getEventId(), 1);
+		reliableChannel.sendMessage(message, false);
+		reliableChannel.sendMessage(new Ack(message.getProcessId(), message.getLogicalClock()), false);
 	}
 	
 	public void receiveEvent(Event e) {
