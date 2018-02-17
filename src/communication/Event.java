@@ -8,8 +8,8 @@ public class Event {
 	protected String eventId;
 	private Integer transmissionSN; /* Sequence number used for enumerate the transmission */
 	
-	public String getTransmissionSequence() {
-		return transmissionSN.toString();
+	public int getTransmissionSequence() {
+		return (int)transmissionSN;
 	}
 
 	public void setTransmissionSequence(Integer transmissionSequence) {

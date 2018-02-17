@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Timer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -91,9 +92,13 @@ public class ReliableChannel {
 	}
 	
 	private void dispatcherReceivedEvent(Event e) {
-		Integer pid = e.getProcessId();
-		Integer sn = currentSN.get(pid);
-		currentSN.replace(e.getProcessId, value)
+		Integer epid = e.getProcessId();
+		Integer esn = e.getTransmissionSequence();
+		Integer currEsn = currentSN.get(epid);
+		if(esn - currEsn == 1)
+			currentSN.replace(epid, esn);
+	//	else
+	//		sendMessage(Nack)
 		if(e instanceof Ack) {
 			manageAckReceived((Ack)e);
 			return;
