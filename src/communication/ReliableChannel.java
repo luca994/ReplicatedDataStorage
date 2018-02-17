@@ -10,16 +10,10 @@ import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Timer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReliableChannel {
 
@@ -72,7 +66,7 @@ public class ReliableChannel {
 	 *            the message to be sent
 	 * @throws IOException
 	 */
-	private synchronized void sendMessage(Event msg) throws IOException {
+	public synchronized void sendMessage(Event msg) throws IOException {
 		Integer sn = currentSN.get(processId) + 1;
 		currentSN.replace(processId, sn);
 		msg.setTransmissionSequence(sn);

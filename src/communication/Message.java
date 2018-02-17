@@ -15,6 +15,14 @@ public class Message extends Event {
 	public String toString() {
 		return "Message [eventId=" + eventId + "]";
 	}
+
+	public int getDataId() {
+		return dataId;
+	}
+
+	public int getIntegerValue() {
+		return integerValue;
+	}
 	
 	
 }
