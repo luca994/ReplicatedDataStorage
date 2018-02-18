@@ -29,8 +29,8 @@ public class LamportAlgorithm {
 		Message message = new Message(processId, logicalClock, dataId, integerValue);
 		logicalClock++;
 		Ack ack = new Ack(processId, logicalClock);
-		reliableChannel.sendMessage(message, false,false);
-		reliableChannel.sendMessage(ack, false,false);
+		reliableChannel.sendMessage(message);
+		reliableChannel.sendMessage(ack);
 	}
 	
 	public void receiveEvent(Event e) {

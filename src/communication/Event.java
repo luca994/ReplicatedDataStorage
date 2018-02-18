@@ -15,6 +15,7 @@ public class Event {
 	public Event(int PID, int logClock) {
 		processId=PID;
 		logicalClock=logClock;
+		sequenceNumber=0;
 		eventId=logicalClock.toString()+"."+processId.toString();
 	}
 	

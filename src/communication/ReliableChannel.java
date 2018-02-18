@@ -85,31 +85,35 @@ public class ReliableChannel {
 	}
 
 	/**
-	 * Set sequenceNumber to the object, then sends it to the multicast group, it adds
-	 * the message to the historyBuffer then returns. We have added a limit of 128
-	 * bytes for a datagram packet.
+	 * Set sequenceNumber to the object, then sends it to the multicast group, it
+	 * adds the message to the historyBuffer then returns. We have added a limit of
+	 * 128 bytes for a datagram packet.
 	 * 
 	 * @param msg
 	 *            the message to be sent
 	 * @throws IOException
 	 */
-	public synchronized void sendMessage(Event msg, boolean ackOrNack,boolean retransmission) {
+	public synchronized void sendMessage(Event msg) {
+		boolean ack = (msg instanceof Ack);
 		Integer sequenceNumber = currentSequenceNumber.get(processId);
-		if(!retransmission && !ackOrNack) {
+		if (msg.getSequenceNumber() == 0 && !ack) {
 			sequenceNumber++;
 			msg.setSequenceNumber(sequenceNumber);
 			currentSequenceNumber.replace(processId, sequenceNumber);
 		}
-		Integer msgSN = msg.getSequenceNumber();	
-		Timer timer = timers.get(sequenceNumber);
+		Integer msgSN = msg.getSequenceNumber();
 		if (sequenceNumber < msgSN)
 			currentSequenceNumber.replace(processId, sequenceNumber);
-		if (!ackOrNack) {
+		if (!ack) {
 			historyBuffer.put(sequenceNumber, msg);
 			acksReceived.put(sequenceNumber, 0);
+			Timer timer = new Timer();
+			timers.put(sequenceNumber, timer);
+			// TODO scegliere un tempo adatto ora ho messo 2 secondi
+			timer.schedule(new Retransmit(sequenceNumber),2000);
 		}
 		try {
-			ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
+			ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
 			ObjectOutput out = null;
 			out = new ObjectOutputStream(bos);
 			out.writeObject(msg);
@@ -118,63 +122,56 @@ public class ReliableChannel {
 			DatagramPacket packet = new DatagramPacket(bytes, bytes.length, multicastSocket.getInetAddress(),
 					multicastSocket.getLocalPort());
 			multicastSocket.send(packet);
-			timer = new Timer();
-			// TODO scegliere un tempo adatto
-			timer.schedule(new Retransmit(sequenceNumber), 1000);
 			bos.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
+	/**
+	 * this method is called by the receiver to dispatch the event to the right method
+	 * @param e
+	 */
 	private void dispatcherReceivedEvent(Event e) {
-
 		if (e instanceof Ack) {
 			manageAckReceived((Ack) e);
 			return;
-		}
-		if (e instanceof Nack) {
-			manageNackReceived((Nack) e);
-			return;
-		}
-		if (e instanceof Message) {
-			manageMessageReceived((Message) e);
-			return;
-		}
-		if (e instanceof LamportAck) {
-			manageMessageReceived((LamportAck) e);
+		} else {
+			manageMessageReceived(e);
 			return;
 		}
 	}
 
+	/**
+	 * this method manage the event of receiving an acknowledgement.
+	 * It increments the counter of acks for that message and if it's the last ack it stops the related
+	 * timer and remove the message from the history buffer
+	 * @param ack
+	 */
 	private synchronized void manageAckReceived(Ack ack) {
-		Integer targetSN = ack.getTargetSequenceNumber();
 		if (ack.getProcessId() == processId || ack.getTargetProcId() != processId)
 			return;
 		else {
+			Integer targetSN = ack.getTargetSequenceNumber();
 			Integer numberOfAcks = acksReceived.get(targetSN);
 			numberOfAcks++;
 			acksReceived.replace(targetSN, numberOfAcks);
 			if (numberOfAcks == groupLength - 1) {
 				timers.get(targetSN).cancel();
 				timers.remove(targetSN);
-				System.out.println("Message with SN: " + targetSN + " received");
+				System.out.println(
+						"Message: " + historyBuffer.get(targetSN).getEventId() + " delivered to all the members");
 				historyBuffer.remove(targetSN);
 				acksReceived.remove(targetSN);
 			}
 		}
 	}
-
-	private void manageNackReceived(Nack nack) {
-		Integer targetSN = nack.getTargetSequenceNumber();
-		if (nack.getProcessId() == processId) {
-			timers.get(targetSN).cancel();
-			sendMessage(historyBuffer.get(targetSN), false,true);
-		} else
-			return;
-	}
-
-	private void manageMessageReceived(Message message) {
+	/**
+	 * this method sends a multicast ack to the members of the multicast
+	 * and calls the function lamport algorith of the upper layer
+	 * @param message
+	 */
+	private void manageMessageReceived(Event message) {
 		Integer msgSN = message.getSequenceNumber();
 		Integer msgPid = message.getProcessId();
 		if (message.getProcessId() == processId)
@@ -184,33 +181,17 @@ public class ReliableChannel {
 			Ack ack = new Ack(processId, 0);
 			ack.setTargetSequenceNumber(msgSN);
 			ack.setTargetProcId(msgPid);
-			sendMessage(ack, true,false);
-			if(msgSN > currentSequenceNumber.get(msgPid))
-				lamportAlgorithm.receiveEvent(message);
-		}
-	}
-	
-	//Overload
-	private void manageMessageReceived(LamportAck lamportAck) {
-		Integer msgSN = lamportAck.getSequenceNumber();
-		Integer msgPid = lamportAck.getProcessId();
-		if (lamportAck.getProcessId() == processId)
-			return;
-		else {
-			checkAndManageSequenceNumber(lamportAck);
-			Ack ack = new Ack(processId, 0);
-			ack.setTargetSequenceNumber(msgSN);
-			ack.setTargetProcId(msgPid);
-			sendMessage(ack, true,false);
-			if(msgSN > currentSequenceNumber.get(msgPid))
-				lamportAlgorithm.receiveEvent(lamportAck);
+			sendMessage(ack);
+			lamportAlgorithm.receiveEvent(message); /*
+													 * Chiamo receiveEvent ogni volta che ricevo un messaggio anche se è
+													 * una ritrasmissione. Quindi ogni volta che lo ricevo io, non è
+													 * detto che sia stato ricevuto da tutti
+													 */
 		}
 	}
 
 	/**
-	 * This method checks if there are some lost message between the received one
-	 * and the last message received from that process and sends the Nacks Then it
-	 * updates the sequence number corresponding to the process.
+	 * This method updates the sequence number corresponding to the process of the event received.
 	 * 
 	 * @param e
 	 */
@@ -218,19 +199,15 @@ public class ReliableChannel {
 		Integer epid = e.getProcessId();
 		Integer eSN = e.getSequenceNumber();
 		Integer currESN = currentSequenceNumber.get(epid);
-		if(currESN < eSN) {
-		for (int i = currESN; i < eSN - 1; i++) {
-			Nack nack = new Nack(processId, 0);
-			nack.setTargetSequenceNumber(i);
-			nack.setTargetProcId(epid);
-			sendMessage(nack, true,false);
-		}
-		currentSequenceNumber.replace(epid, eSN);
-		}
-		else
-			return;
+		if (currESN < eSN)
+			currentSequenceNumber.replace(epid, eSN);
 	}
 
+	/**
+	 * this is the task used to schedule the retransmission of a message
+	 * @author luca
+	 *
+	 */
 	private class Retransmit extends TimerTask {
 		private Integer sequenceNumber;
 
@@ -240,14 +217,18 @@ public class ReliableChannel {
 
 		@Override
 		public void run() {
-			sendMessage(historyBuffer.get(sequenceNumber), false,true);
+			sendMessage(historyBuffer.get(sequenceNumber));
 		}
 	}
-
+	/**
+	 * this is the runnable class used to create the object that receives the multicast messages
+	 * @author luca
+	 *
+	 */
 	private class Receiver implements Runnable {
 		@Override
 		public void run() {
-			byte[] bytesBuffer = new byte[128];
+			byte[] bytesBuffer = new byte[512];
 			DatagramPacket packet = new DatagramPacket(bytesBuffer, bytesBuffer.length);
 			try {
 				while (true) {
