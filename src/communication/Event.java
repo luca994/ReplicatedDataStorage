@@ -5,10 +5,11 @@ public class Event {
 	
 	protected Integer processId;
 	protected Integer logicalClock;
+	protected Integer sequenceNumber;
 	protected String eventId;
 
-	public void setLogicalClock(Integer logicalClock) {
-		this.logicalClock = logicalClock;
+	public void setSequenceNumber(Integer sequenceNumber) {
+		this.sequenceNumber = sequenceNumber;
 	}
 
 	public Event(int PID, int logClock) {
@@ -25,6 +26,9 @@ public class Event {
 		return processId.intValue();
 	}
 	
+	public int getSequenceNumber() {
+		return sequenceNumber.intValue();
+	}
 	public int getLogicalClock() {
 		return logicalClock.intValue();
 	}

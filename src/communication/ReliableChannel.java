@@ -24,26 +24,26 @@ public class ReliableChannel {
 	private LamportAlgorithm lamportAlgorithm;
 
 	/**
-	 * The key of the element represents the logicalClock, the value is the
+	 * The key of the element represents the sequenceNumber, the value is the
 	 * corresponding timer
 	 * 
 	 */
 	private ConcurrentMap<Integer, Timer> timers;
 	/**
 	 * The key of the element represents the process id, the value is the last
-	 * logicalclock received from that process
+	 * sequenceNumber received from that process
 	 */
-	private ConcurrentMap<Integer, Integer> currentClock;
+	private ConcurrentMap<Integer, Integer> currentSequenceNumber;
 
 	/**
-	 * The key of the element represents the logicalClock, the value is the
+	 * The key of the element represents the sequenceNumber, the value is the
 	 * corresponding message
 	 * 
 	 */
 	private ConcurrentMap<Integer, Event> historyBuffer;
 
 	/**
-	 * The key of the element represents the logicalClock, the value is the
+	 * The key of the element represents the sequenceNumber, the value is the
 	 * corresponding acks received
 	 * 
 	 */
@@ -64,10 +64,10 @@ public class ReliableChannel {
 		this.timers = new ConcurrentHashMap<Integer, Timer>();
 		this.acksReceived = new ConcurrentHashMap<Integer, Integer>();
 		this.historyBuffer = new ConcurrentHashMap<Integer, Event>();
-		this.currentClock = new ConcurrentHashMap<Integer, Integer>(groupLength);
+		this.currentSequenceNumber = new ConcurrentHashMap<Integer, Integer>(groupLength);
 		this.receiverThread = new Thread(new Receiver());
 		for (int i = 1; i <= groupLength; i++) {
-			currentClock.put(i, 0);
+			currentSequenceNumber.put(i, 0);
 		}
 	}
 
@@ -85,7 +85,7 @@ public class ReliableChannel {
 	}
 
 	/**
-	 * Set logicalClock to the object, then sends it to the multicast group, it adds
+	 * Set sequenceNumber to the object, then sends it to the multicast group, it adds
 	 * the message to the historyBuffer then returns. We have added a limit of 128
 	 * bytes for a datagram packet.
 	 * 
@@ -93,15 +93,20 @@ public class ReliableChannel {
 	 *            the message to be sent
 	 * @throws IOException
 	 */
-	public synchronized void sendMessage(Event msg, boolean ackOrNack) {
-		Integer clock = currentClock.get(processId);
-		Integer msgClock = msg.getLogicalClock();
-		Timer timer = timers.get(clock);
-		if (clock < msgClock)
-			currentClock.replace(processId, clock);
+	public synchronized void sendMessage(Event msg, boolean ackOrNack,boolean retransmission) {
+		Integer sequenceNumber = currentSequenceNumber.get(processId);
+		if(!retransmission && !ackOrNack) {
+			sequenceNumber++;
+			msg.setSequenceNumber(sequenceNumber);
+			currentSequenceNumber.replace(processId, sequenceNumber);
+		}
+		Integer msgSN = msg.getSequenceNumber();	
+		Timer timer = timers.get(sequenceNumber);
+		if (sequenceNumber < msgSN)
+			currentSequenceNumber.replace(processId, sequenceNumber);
 		if (!ackOrNack) {
-			historyBuffer.put(clock, msg);
-			acksReceived.put(clock, 0);
+			historyBuffer.put(sequenceNumber, msg);
+			acksReceived.put(sequenceNumber, 0);
 		}
 		try {
 			ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
@@ -115,7 +120,7 @@ public class ReliableChannel {
 			multicastSocket.send(packet);
 			timer = new Timer();
 			// TODO scegliere un tempo adatto
-			timer.schedule(new Retransmit(clock), 1000);
+			timer.schedule(new Retransmit(sequenceNumber), 1000);
 			bos.close();
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -143,61 +148,61 @@ public class ReliableChannel {
 	}
 
 	private synchronized void manageAckReceived(Ack ack) {
-		Integer targetClock = ack.getTargetClock();
+		Integer targetSN = ack.getTargetSequenceNumber();
 		if (ack.getProcessId() == processId || ack.getTargetProcId() != processId)
 			return;
 		else {
-			Integer numberOfAcks = acksReceived.get(targetClock);
+			Integer numberOfAcks = acksReceived.get(targetSN);
 			numberOfAcks++;
-			acksReceived.replace(targetClock, numberOfAcks);
+			acksReceived.replace(targetSN, numberOfAcks);
 			if (numberOfAcks == groupLength - 1) {
-				timers.get(targetClock).cancel();
-				timers.remove(targetClock);
-				System.out.println("Message with clock: " + targetClock + " received");
-				historyBuffer.remove(targetClock);
-				acksReceived.remove(targetClock);
+				timers.get(targetSN).cancel();
+				timers.remove(targetSN);
+				System.out.println("Message with SN: " + targetSN + " received");
+				historyBuffer.remove(targetSN);
+				acksReceived.remove(targetSN);
 			}
 		}
 	}
 
 	private void manageNackReceived(Nack nack) {
-		Integer targetClock = nack.getTargetClock();
+		Integer targetSN = nack.getTargetSequenceNumber();
 		if (nack.getProcessId() == processId) {
-			timers.get(targetClock).cancel();
-			sendMessage(historyBuffer.get(targetClock), false);
+			timers.get(targetSN).cancel();
+			sendMessage(historyBuffer.get(targetSN), false,true);
 		} else
 			return;
 	}
 
 	private void manageMessageReceived(Message message) {
-		Integer msgClock = message.getLogicalClock();
+		Integer msgSN = message.getSequenceNumber();
 		Integer msgPid = message.getProcessId();
 		if (message.getProcessId() == processId)
 			return;
 		else {
-			checkAndManageClock(message);
+			checkAndManageSequenceNumber(message);
 			Ack ack = new Ack(processId, 0);
-			ack.setTargetClock(msgClock);
+			ack.setTargetSequenceNumber(msgSN);
 			ack.setTargetProcId(msgPid);
-			sendMessage(ack, true);
-			if(msgClock > currentClock.get(msgPid))
+			sendMessage(ack, true,false);
+			if(msgSN > currentSequenceNumber.get(msgPid))
 				lamportAlgorithm.receiveEvent(message);
 		}
 	}
 	
 	//Overload
 	private void manageMessageReceived(LamportAck lamportAck) {
-		Integer msgClock = lamportAck.getLogicalClock();
+		Integer msgSN = lamportAck.getSequenceNumber();
 		Integer msgPid = lamportAck.getProcessId();
 		if (lamportAck.getProcessId() == processId)
 			return;
 		else {
-			checkAndManageClock(lamportAck);
+			checkAndManageSequenceNumber(lamportAck);
 			Ack ack = new Ack(processId, 0);
-			ack.setTargetClock(msgClock);
+			ack.setTargetSequenceNumber(msgSN);
 			ack.setTargetProcId(msgPid);
-			sendMessage(ack, true);
-			if(msgClock > currentClock.get(msgPid))
+			sendMessage(ack, true,false);
+			if(msgSN > currentSequenceNumber.get(msgPid))
 				lamportAlgorithm.receiveEvent(lamportAck);
 		}
 	}
@@ -209,33 +214,33 @@ public class ReliableChannel {
 	 * 
 	 * @param e
 	 */
-	private void checkAndManageClock(Event e) {
+	private void checkAndManageSequenceNumber(Event e) {
 		Integer epid = e.getProcessId();
-		Integer eClock = e.getLogicalClock();
-		Integer currEclock = currentClock.get(epid);
-		if(currEclock < eClock) {
-		for (int i = currEclock; i < eClock - 1; i++) {
+		Integer eSN = e.getSequenceNumber();
+		Integer currESN = currentSequenceNumber.get(epid);
+		if(currESN < eSN) {
+		for (int i = currESN; i < eSN - 1; i++) {
 			Nack nack = new Nack(processId, 0);
-			nack.setTargetClock(i);
+			nack.setTargetSequenceNumber(i);
 			nack.setTargetProcId(epid);
-			sendMessage(nack, true);
+			sendMessage(nack, true,false);
 		}
-		currentClock.replace(epid, eClock);
+		currentSequenceNumber.replace(epid, eSN);
 		}
 		else
 			return;
 	}
 
 	private class Retransmit extends TimerTask {
-		private Integer clock;
+		private Integer sequenceNumber;
 
-		public Retransmit(Integer clock) {
-			this.clock = clock;
+		public Retransmit(Integer sequenceNumber) {
+			this.sequenceNumber = sequenceNumber;
 		}
 
 		@Override
 		public void run() {
-			sendMessage(historyBuffer.get(clock), false);
+			sendMessage(historyBuffer.get(sequenceNumber), false,true);
 		}
 	}
 
