@@ -1,5 +1,6 @@
 package server;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import communication.LamportAlgorithm;
@@ -14,10 +15,15 @@ public class Server {
 	public Server(int processId, int groupLength) {
 		this.processId = processId;
 		lamportAlgorithm = new LamportAlgorithm(processId, groupLength, this);
+		database = new ConcurrentHashMap<>();
 	}
 	
-	public int getValue(int dataId) {
-		return database.get(dataId);
+	public String getValue(int dataId) {
+		Integer value = database.get(dataId);
+		if(value == null)
+			return null;
+		else 
+			return value.toString();
 	}
 	
 	public void write(int dataId, int integerValue) {
@@ -26,6 +32,11 @@ public class Server {
 	
 	public synchronized void updateDatabase(Message message) {
 		database.put(message.getDataId(), message.getIntegerValue());
+	}
+	
+	public void print() {
+		System.out.println("Database:\n");
+		database.toString();
 	}
 
 	public int getProcessId() {

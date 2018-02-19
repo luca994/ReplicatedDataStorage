@@ -16,8 +16,8 @@ public class Client {
 	public void request() throws RemoteException {
 		Scanner scan = new Scanner(System.in);
 		String input = "";
-		while(!input.equals("q")) {
-			System.out.println("Inserisci l'operazione:\n1)read\n2)write\n3)q (per uscire)\n");
+		while(!(input.equals("q") || input.equals("4"))) {
+			System.out.println("Inserisci l'operazione:\n1)read\n2)write\n3)print\n4)q (per uscire)\n");
 			input = scan.nextLine();
 			switch(input){
 			case "read":
@@ -36,8 +36,13 @@ public class Client {
 				server.write(idWrite, value);
 				scan = new Scanner(System.in);
 				break;
-			case "q":
+			case "print":
 			case "3":
+				server.print();
+				System.out.println("Database printed on the server\n");
+				scan = new Scanner(System.in);
+			case "q":
+			case "4":
 				System.out.println("Uscita");
 				break;
 			default:

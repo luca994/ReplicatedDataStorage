@@ -5,7 +5,8 @@ import java.rmi.RemoteException;
 
 public interface ServerRemoteInterface extends Remote{
 
-	int read(int dataId) throws RemoteException;
+	String read(int dataId) throws RemoteException;
 	void write(int dataId, int integerValue) throws RemoteException;
+	void print() throws RemoteException;
 	
 }

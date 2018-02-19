@@ -18,13 +18,18 @@ public class ServerRemote extends UnicastRemoteObject implements ServerRemoteInt
 	}
 
 	@Override
-	public int read(int dataId) throws RemoteException {
+	public String read(int dataId) throws RemoteException {
 		return server.getValue(dataId);
 	}
 
 	@Override
 	public void write(int dataId, int integerValue) throws RemoteException {
 		server.write(dataId, integerValue);
+	}
+
+	@Override
+	public void print() throws RemoteException {
+		server.print();
 	}
 
 }

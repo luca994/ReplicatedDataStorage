@@ -1,6 +1,7 @@
 package communication;
 
 import java.util.Comparator;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.PriorityBlockingQueue;
 
@@ -22,6 +23,7 @@ public class LamportAlgorithm {
 		Comparator<Message> c = new Order();
 		groupSize = groupLength;
 		writeQueue = new PriorityBlockingQueue<>(11, c);
+		ackCount = new ConcurrentHashMap<>();
 		reliableChannel = new ReliableChannel(processId, groupLength, this);
 		updateThread = new Thread(new CheckQueue());
 	}
