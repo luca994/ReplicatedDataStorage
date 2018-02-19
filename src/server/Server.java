@@ -24,12 +24,12 @@ public class Server {
 		lamportAlgorithm.write(dataId, integerValue, processId);
 	}
 	
-	public void updateDatabase(Message message) {
+	public synchronized void updateDatabase(Message message) {
 		database.put(message.getDataId(), message.getIntegerValue());
 	}
-	
-	public void incrementLogicalClock() {
-		
+
+	public int getProcessId() {
+		return processId;
 	}
 	
 }

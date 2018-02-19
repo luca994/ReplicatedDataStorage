@@ -12,8 +12,9 @@ public class LamportAlgorithm {
 	private PriorityBlockingQueue<Message> writeQueue;
 	private ConcurrentMap<String, Integer> ackCount;
 	private int groupSize;
-	private int logicalClock;
+	private Integer logicalClock;
 	private Server server;
+	private Thread updateThread;
 	
 	public LamportAlgorithm(int processId, int groupLength, Server server) {
 		logicalClock = 0;
@@ -22,47 +23,94 @@ public class LamportAlgorithm {
 		groupSize = groupLength;
 		writeQueue = new PriorityBlockingQueue<>(11, c);
 		reliableChannel = new ReliableChannel(processId, groupLength, this);
+		updateThread = new Thread(new CheckQueue());
 	}
 	
-	public synchronized void write(int dataId, int integerValue, int processId) {
-		logicalClock++;
-		Message message = new Message(processId, logicalClock, dataId, integerValue);
-		logicalClock++;
-		Ack ack = new Ack(processId, logicalClock);
-		reliableChannel.sendMessage(message);
-		reliableChannel.sendMessage(ack);
+	public void write(int dataId, int integerValue, int processId) {
+		synchronized(logicalClock) {
+			logicalClock++;
+			Message message = new Message(processId, logicalClock, dataId, integerValue);
+			writeQueue.put(message);
+			logicalClock++;
+			LamportAck ack = new LamportAck(processId, logicalClock, message.getLogicalClock());
+			reliableChannel.sendMessage(message);
+			reliableChannel.sendMessage(ack);
+		}
 	}
 	
 	public void receiveEvent(Event e) {
+		lamportClockUpdate(e);
 		if(e instanceof Message)
 			messageHandler((Message) e);
 		else if(e instanceof LamportAck)
 			ackHandler((LamportAck) e);
 	}
 	
-	public void messageHandler(Message m) {
+	private void messageHandler(Message m) {
 		writeQueue.put(m);
+		synchronized(logicalClock) {
+			logicalClock++;
+			LamportAck ack = new LamportAck(server.getProcessId(), logicalClock, m.getLogicalClock());
+			reliableChannel.sendMessage(ack);
+		}
 	}
 	
-	public void ackHandler(LamportAck a) {
+	private void ackHandler(LamportAck a) {
+		Integer count = ackCount.get(a.getIdRelatedMessage());
+		if(count==null) {
+			ackCount.put(a.getIdRelatedMessage(), 1);
+		}
+		else if (count<groupSize) {
+			int value = count.intValue();
+			value++;
+			ackCount.put(a.getIdRelatedMessage(), value);
+		}
+		updateThread.notify();
+	}
+	
+	private void lamportClockUpdate(Event e) {
+		synchronized (logicalClock) {
+			logicalClock = Math.max(logicalClock, e.getLogicalClock())+1;
+		}
+	}
+	
+	private class CheckQueue implements Runnable{
+		@Override
+		public void run() {
+			while(true) {
+				try {
+					while(checkQueueHead() && !writeQueue.isEmpty()) {
+						Message m = writeQueue.poll();
+						server.updateDatabase(m);
+					}
+					this.wait();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}	
+		}
+		
+		public boolean checkQueueHead() {
+			Message m = writeQueue.element();
+			int count = ackCount.get(m.eventId);
+			if(count==groupSize)
+				return true;
+			else 
+				return false;
+		}
 		
 	}
 	
-	
 	/*
-	 * prova coda prioritaria (da eliminare)
-	 */
-	/*public Message getQueueHead() {
-		return database.element();
-	}
-	
 	public static void main(String[] args) {
-		Message m = new Message(0, 1, 0, 0);
-		Message m1 = new Message(1, 1, 0, 0);
-		LamportAlgorithm l = new LamportAlgorithm();
-		l.write(m1);
-		l.write(m);
-		System.out.println(l.getQueueHead().getEventId());
+		LamportAlgorithm l = new LamportAlgorithm(0, 0, null);
+		l.logicalClock = 0;
+		Message m = new Message(0, l.logicalClock, 0, 0);
+		l.logicalClock++;
+		Message m1 = new Message(0, l.logicalClock, 0, 0);
+		l.logicalClock++;
+		System.out.println("logClock of m: "+m.getLogicalClock()+"\n");
+		System.out.println("logClock of m1: "+m1.getLogicalClock()+"\n");
 		
 	}*/
 	
