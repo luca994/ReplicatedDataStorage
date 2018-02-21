@@ -64,7 +64,7 @@ public class LamportAlgorithm {
 			value++;
 			ackCount.put(a.getIdRelatedMessage(), value);
 		}
-		notifyAll();
+		updateThread.notifyAll();
 	}
 
 	private synchronized void lamportClockUpdate(Event e) {
@@ -80,7 +80,7 @@ public class LamportAlgorithm {
 						Message m = writeQueue.poll();
 						server.updateDatabase(m);
 					}
-					wait();
+					updateThread.wait();
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
