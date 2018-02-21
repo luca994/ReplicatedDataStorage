@@ -84,6 +84,7 @@ public class LamportAlgorithm {
 					while (checkQueueHead()) {
 						Message m = writeQueue.poll();
 						server.updateDatabase(m);
+						ackCount.remove(m.getEventId());
 					}
 					synchronized(lock) {
 						lock.wait();

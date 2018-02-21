@@ -36,7 +36,9 @@ public class Server {
 	
 	public void print() {
 		System.out.println("Database:\n");
-		database.toString();
+		for(Integer key: database.keySet()) {
+			System.out.println("Key:"+key+" value:"+database.get(key)+"\n");
+		}
 	}
 
 	public int getProcessId() {
