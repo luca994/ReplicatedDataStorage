@@ -2,6 +2,11 @@ package communication;
 
 public class Ack extends Event {
 
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -5081379629606664819L;
+	
 	private Integer targetSequenceNumber;
 	private Integer targetProcId;
 	

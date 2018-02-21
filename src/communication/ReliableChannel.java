@@ -16,6 +16,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public class ReliableChannel {
+	
+	private static final int MULTICAST_PORT = 10000;
+	private static final String MULTICAST_ADDRESS = "224.0.0.1";
 
 	private MulticastSocket multicastSocket;
 	private Thread receiverThread;
@@ -58,6 +61,12 @@ public class ReliableChannel {
 	 * @param lamportAlgorithm
 	 */
 	public ReliableChannel(int processId, int groupLength, LamportAlgorithm lamportAlgorithm) {
+		this.receiverThread = new Thread(new Receiver());
+		try {
+			startConnection(MULTICAST_PORT, MULTICAST_ADDRESS);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		this.lamportAlgorithm = lamportAlgorithm;
 		this.groupLength = groupLength;
 		this.processId = processId;
@@ -65,7 +74,6 @@ public class ReliableChannel {
 		this.acksReceived = new ConcurrentHashMap<Integer, Integer>();
 		this.historyBuffer = new ConcurrentHashMap<Integer, Event>();
 		this.currentSequenceNumber = new ConcurrentHashMap<Integer, Integer>(groupLength);
-		this.receiverThread = new Thread(new Receiver());
 		for (int i = 1; i <= groupLength; i++) {
 			currentSequenceNumber.put(i, 0);
 		}
@@ -119,8 +127,8 @@ public class ReliableChannel {
 			out.writeObject(msg);
 			out.flush();
 			byte[] bytes = bos.toByteArray();
-			DatagramPacket packet = new DatagramPacket(bytes, bytes.length, multicastSocket.getInetAddress(),
-					multicastSocket.getLocalPort());
+			DatagramPacket packet = new DatagramPacket(bytes, bytes.length, InetAddress.getByName(MULTICAST_ADDRESS),
+					MULTICAST_PORT);
 			multicastSocket.send(packet);
 			bos.close();
 		} catch (IOException e) {

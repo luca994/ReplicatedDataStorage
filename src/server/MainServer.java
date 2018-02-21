@@ -1,9 +1,9 @@
 package server;
 
-import java.net.MalformedURLException;
-import java.rmi.Naming;
+import java.rmi.AlreadyBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.util.Scanner;
 
 public class MainServer{
@@ -18,12 +18,12 @@ public class MainServer{
 			System.out.println("Inserisci il tuo id\n");
 			int processId = scan.nextInt();
 			Server server = new Server(processId, groupLength);
-			LocateRegistry.createRegistry(port);
+			Registry registry = LocateRegistry.createRegistry(port);
 			ServerRemote serverMethods = new ServerRemote(server);
-			Naming.rebind("ServerRemote", serverMethods);
+			registry.bind("ServerRemote", serverMethods);
 			System.out.println("Registro pronto\n");
 			scan.close();
-		} catch (RemoteException | MalformedURLException e) {
+		} catch (RemoteException | AlreadyBoundException e) {
 			e.printStackTrace();
 		}		
 	}

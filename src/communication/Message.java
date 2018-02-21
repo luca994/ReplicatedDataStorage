@@ -2,6 +2,11 @@ package communication;
 
 public class Message extends Event {
 	
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -2736291415009713801L;
+	
 	private int dataId;
 	private int integerValue;
 	

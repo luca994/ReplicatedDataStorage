@@ -1,7 +1,13 @@
 package communication;
 
+import java.io.Serializable;
 
-public class Event {
+public class Event implements Serializable{
+	
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1328281921587835939L;
 	
 	protected Integer processId;
 	protected Integer logicalClock;
