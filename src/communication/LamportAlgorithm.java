@@ -34,7 +34,7 @@ public class LamportAlgorithm {
 		Message message = new Message(processId, logicalClock, dataId, integerValue);
 		writeQueue.put(message);
 		logicalClock++;
-		LamportAck ack = new LamportAck(processId, logicalClock, message.getLogicalClock());
+		LamportAck ack = new LamportAck(processId, logicalClock, message.getLogicalClock(), message.getProcessId());
 		reliableChannel.sendMessage(message);
 		reliableChannel.sendMessage(ack);
 		ackHandler(ack);
@@ -51,7 +51,7 @@ public class LamportAlgorithm {
 	private synchronized void messageHandler(Message m) {
 		writeQueue.put(m);
 		logicalClock++;
-		LamportAck ack = new LamportAck(server.getProcessId(), logicalClock, m.getLogicalClock());
+		LamportAck ack = new LamportAck(server.getProcessId(), logicalClock, m.getLogicalClock(), m.getProcessId());
 		reliableChannel.sendMessage(ack);
 	}
 
