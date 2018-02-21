@@ -37,9 +37,7 @@ public class LamportAlgorithm {
 		LamportAck ack = new LamportAck(processId, logicalClock, message.getLogicalClock());
 		reliableChannel.sendMessage(message);
 		reliableChannel.sendMessage(ack);
-		synchronized(updateThread){
-			updateThread.notifyAll();;
-		}
+		updateThread.notifyAll();
 	}
 
 	public void receiveEvent(Event e) {
@@ -57,7 +55,7 @@ public class LamportAlgorithm {
 		reliableChannel.sendMessage(ack);
 	}
 
-	private void ackHandler(LamportAck a) {
+	private synchronized void ackHandler(LamportAck a) {
 		Integer count = ackCount.get(a.getIdRelatedMessage());
 		if (count == null) {
 			ackCount.put(a.getIdRelatedMessage(), 1);
@@ -66,9 +64,7 @@ public class LamportAlgorithm {
 			value++;
 			ackCount.put(a.getIdRelatedMessage(), value);
 		}
-		synchronized(updateThread) {
-			updateThread.notifyAll();;
-		}
+		updateThread.notifyAll();
 	}
 
 	private synchronized void lamportClockUpdate(Event e) {
@@ -84,9 +80,7 @@ public class LamportAlgorithm {
 						Message m = writeQueue.poll();
 						server.updateDatabase(m);
 					}
-					synchronized(updateThread) {
-						this.wait();
-					}
+					this.wait();
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
