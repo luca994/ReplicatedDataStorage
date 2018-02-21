@@ -55,7 +55,7 @@ public class LamportAlgorithm {
 		reliableChannel.sendMessage(ack);
 	}
 
-	private  void ackHandler(LamportAck a) {
+	private synchronized void ackHandler(LamportAck a) {
 		Integer count = ackCount.get(a.getIdRelatedMessage());
 		if (count == null) {
 			ackCount.put(a.getIdRelatedMessage(), 1);
@@ -64,9 +64,7 @@ public class LamportAlgorithm {
 			value++;
 			ackCount.put(a.getIdRelatedMessage(), value);
 		}
-		synchronized(updateThread) {
-			notifyAll();
-		}
+		notifyAll();
 	}
 
 	private synchronized void lamportClockUpdate(Event e) {
@@ -76,16 +74,14 @@ public class LamportAlgorithm {
 	//classe corretta ma non so come funziona la wait/notify
 	private class CheckQueue implements Runnable {
 		@Override
-		public void run() {
+		public synchronized void run() {
 			while (true) {
 				try {
 					while (checkQueueHead()) {
 						Message m = writeQueue.poll();
 						server.updateDatabase(m);
 					}
-					synchronized(updateThread) {
-						wait();
-					}
+					wait();
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
