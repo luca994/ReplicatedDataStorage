@@ -80,7 +80,7 @@ public class LamportAlgorithm {
 		public void run() {
 			while (true) {
 				try {
-					while (checkQueueHead() && !writeQueue.isEmpty()) {
+					while (checkQueueHead()) {
 						Message m = writeQueue.poll();
 						server.updateDatabase(m);
 					}
