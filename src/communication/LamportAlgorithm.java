@@ -37,8 +37,8 @@ public class LamportAlgorithm {
 		logicalClock++;
 		LamportAck ack = new LamportAck(processId, logicalClock, message.getLogicalClock(), message.getProcessId());
 		reliableChannel.sendMessage(message);
-		reliableChannel.sendMessage(ack);
 		ackHandler(ack);
+		reliableChannel.sendMessage(ack);
 	}
 
 	public void receiveEvent(Event e) {
@@ -53,6 +53,7 @@ public class LamportAlgorithm {
 		writeQueue.put(m);
 		logicalClock++;
 		LamportAck ack = new LamportAck(server.getProcessId(), logicalClock, m.getLogicalClock(), m.getProcessId());
+		ackHandler(ack);
 		reliableChannel.sendMessage(ack);
 	}
 
