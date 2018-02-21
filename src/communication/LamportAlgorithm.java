@@ -55,7 +55,7 @@ public class LamportAlgorithm {
 		reliableChannel.sendMessage(ack);
 	}
 
-	private void ackHandler(LamportAck a) {
+	private synchronized void ackHandler(LamportAck a) {
 		Integer count = ackCount.get(a.getIdRelatedMessage());
 		if (count == null) {
 			ackCount.put(a.getIdRelatedMessage(), 1);
