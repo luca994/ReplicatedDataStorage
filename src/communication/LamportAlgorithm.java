@@ -73,7 +73,7 @@ public class LamportAlgorithm {
 
 	private class CheckQueue implements Runnable {
 		@Override
-		public void run() {
+		public synchronized void run() {
 			while (true) {
 				try {
 					while (checkQueueHead()) {
