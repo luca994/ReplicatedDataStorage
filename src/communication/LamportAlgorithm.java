@@ -55,7 +55,7 @@ public class LamportAlgorithm {
 		reliableChannel.sendMessage(ack);
 	}
 
-	private synchronized void ackHandler(LamportAck a) {
+	private void ackHandler(LamportAck a) {
 		Integer count = ackCount.get(a.getIdRelatedMessage());
 		if (count == null) {
 			ackCount.put(a.getIdRelatedMessage(), 1);
@@ -64,7 +64,9 @@ public class LamportAlgorithm {
 			value++;
 			ackCount.put(a.getIdRelatedMessage(), value);
 		}
-		updateThread.notify();
+		synchronized(updateThread) {
+			updateThread.notify();
+		}
 	}
 
 	private synchronized void lamportClockUpdate(Event e) {
@@ -73,14 +75,16 @@ public class LamportAlgorithm {
 
 	private class CheckQueue implements Runnable {
 		@Override
-		public synchronized void run() {
+		public void run() {
 			while (true) {
 				try {
 					while (checkQueueHead() && !writeQueue.isEmpty()) {
 						Message m = writeQueue.poll();
 						server.updateDatabase(m);
 					}
-					this.wait();
+					synchronized(this) {
+						this.wait();
+					}
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
