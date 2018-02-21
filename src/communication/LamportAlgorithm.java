@@ -38,7 +38,7 @@ public class LamportAlgorithm {
 		reliableChannel.sendMessage(message);
 		reliableChannel.sendMessage(ack);
 		synchronized(updateThread){
-			updateThread.notify();
+			updateThread.notifyAll();;
 		}
 	}
 
@@ -67,7 +67,7 @@ public class LamportAlgorithm {
 			ackCount.put(a.getIdRelatedMessage(), value);
 		}
 		synchronized(updateThread) {
-			updateThread.notify();
+			updateThread.notifyAll();;
 		}
 	}
 
@@ -84,7 +84,7 @@ public class LamportAlgorithm {
 						Message m = writeQueue.poll();
 						server.updateDatabase(m);
 					}
-					synchronized(this) {
+					synchronized(updateThread) {
 						this.wait();
 					}
 				} catch (InterruptedException e) {
