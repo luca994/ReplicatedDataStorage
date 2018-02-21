@@ -64,41 +64,16 @@ public class LamportAlgorithm {
 			value++;
 			ackCount.put(a.getIdRelatedMessage(), value);
 		}
-		/*synchronized(updateThread) {
-			updateThread.notifyAll();
-		}*/
+		synchronized(updateThread) {
+			notifyAll();
+		}
 	}
 
 	private synchronized void lamportClockUpdate(Event e) {
 		logicalClock = Math.max(logicalClock, e.getLogicalClock()) + 1;
 	}
-
-	private class CheckQueue implements Runnable {
-		@Override
-		public void run() {
-			while (true) {
-				if (checkQueueHead()) {
-					Message m = writeQueue.poll();
-					server.updateDatabase(m);
-				}
-			}
-		}
-
-		public boolean checkQueueHead() {
-			if (writeQueue.isEmpty())
-				return false;
-			Message m = writeQueue.element();
-			int count = ackCount.get(m.eventId);
-			if (count == groupSize)
-				return true;
-			else
-				return false;
-		}
-
-	}
 	
 	//classe corretta ma non so come funziona la wait/notify
-	/*
 	private class CheckQueue implements Runnable {
 		@Override
 		public void run() {
@@ -109,7 +84,7 @@ public class LamportAlgorithm {
 						server.updateDatabase(m);
 					}
 					synchronized(updateThread) {
-						updateThread.wait();
+						wait();
 					}
 				} catch (InterruptedException e) {
 					e.printStackTrace();
@@ -128,7 +103,7 @@ public class LamportAlgorithm {
 				return false;
 		}
 
-	}*/
+	}
 
 	/*
 	 * public static void main(String[] args) { LamportAlgorithm l = new
