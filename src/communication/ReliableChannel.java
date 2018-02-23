@@ -82,6 +82,7 @@ public class ReliableChannel {
 		this.historyBuffer = new ConcurrentHashMap<Integer, Event>();
 		this.currentSequenceNumber = 0;
 		this.eventReceived = new ArrayList<String>();
+		this.lock = new Object();
 	}
 
 	/**
@@ -245,6 +246,8 @@ public class ReliableChannel {
 		@Override
 		public void run() {
 			synchronized (lock) {
+				if (acksReceived.get(sequenceNumber) == null)
+					return;
 				Event retransmission = historyBuffer.get(sequenceNumber);
 				historyBuffer.remove(sequenceNumber);
 				acksReceived.remove(sequenceNumber);
