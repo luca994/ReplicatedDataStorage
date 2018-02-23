@@ -175,20 +175,21 @@ public class ReliableChannel {
 		else {
 			synchronized (lock) {
 				int targetSN = ack.getTargetSequenceNumber();
-				if (!acksReceived.containsKey(targetSN)) {
+				Integer numberOfAcks = acksReceived.get(targetSN);
+				if (numberOfAcks == null) {
 					System.out.println("Big Delay?!");
 					return;
-				} else {
-					Integer numberOfAcks = acksReceived.get(targetSN);
-					numberOfAcks++;
-					if (numberOfAcks == groupLength - 1) {
-						timers.get(targetSN).cancel();
-						timers.remove(targetSN);
-						System.out.println("Message: " + historyBuffer.get(targetSN).getEventId()
-								+ " delivered to all the members");
-						historyBuffer.remove(targetSN);
-						acksReceived.remove(targetSN);
-					}
+				}
+				numberOfAcks++;
+				acksReceived.replace(targetSN, numberOfAcks);
+				System.out.println("Ack from process " + ack.getProcessId() + " received!");
+				if (numberOfAcks == groupLength - 1) {
+					timers.get(targetSN).cancel();
+					timers.remove(targetSN);
+					System.out.println(
+							"Message: " + historyBuffer.get(targetSN).getEventId() + " delivered to all the members");
+					historyBuffer.remove(targetSN);
+					acksReceived.remove(targetSN);
 				}
 			}
 		}
