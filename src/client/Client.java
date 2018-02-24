@@ -41,6 +41,7 @@ public class Client {
 				server.print();
 				System.out.println("Database printed on the server\n");
 				scan = new Scanner(System.in);
+				break;
 			case "q":
 			case "4":
 				System.out.println("Uscita");
