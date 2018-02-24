@@ -249,6 +249,7 @@ public class ReliableChannel {
 				if (acksReceived.get(sequenceNumber) == null)
 					return;
 				Event retransmission = historyBuffer.get(sequenceNumber);
+				System.out.println("Time Expired, retransmission... \nEvent: "+retransmission.eventId);
 				historyBuffer.remove(sequenceNumber);
 				acksReceived.remove(sequenceNumber);
 				sendMessage(retransmission);
