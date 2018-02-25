@@ -12,7 +12,6 @@ import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
@@ -121,22 +120,21 @@ public class ReliableChannel {
 			// TODO scegliere un tempo adatto ora ho messo 2 secondi
 			timer.schedule(new Retransmit(currentSequenceNumber), 2000);
 		}
-		if (new Random().nextBoolean()) {
-			try {
-				ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
-				ObjectOutput out = null;
-				out = new ObjectOutputStream(bos);
-				out.writeObject(msg);
-				out.flush();
-				byte[] bytes = bos.toByteArray();
-				DatagramPacket packet = new DatagramPacket(bytes, bytes.length,
-						InetAddress.getByName(MULTICAST_ADDRESS), MULTICAST_PORT);
-				multicastSocket.send(packet);
-				bos.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+		try {
+			ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
+			ObjectOutput out = null;
+			out = new ObjectOutputStream(bos);
+			out.writeObject(msg);
+			out.flush();
+			byte[] bytes = bos.toByteArray();
+			DatagramPacket packet = new DatagramPacket(bytes, bytes.length, InetAddress.getByName(MULTICAST_ADDRESS),
+					MULTICAST_PORT);
+			multicastSocket.send(packet);
+			bos.close();
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
+
 	}
 
 	/**
