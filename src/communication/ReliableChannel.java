@@ -121,21 +121,22 @@ public class ReliableChannel {
 			// TODO scegliere un tempo adatto ora ho messo 2 secondi
 			timer.schedule(new Retransmit(currentSequenceNumber), 2000);
 		}
-		if(new Random().nextBoolean()) {
-		try {
-			ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
-			ObjectOutput out = null;
-			out = new ObjectOutputStream(bos);
-			out.writeObject(msg);
-			out.flush();
-			byte[] bytes = bos.toByteArray();
-			DatagramPacket packet = new DatagramPacket(bytes, bytes.length, InetAddress.getByName(MULTICAST_ADDRESS),
-					MULTICAST_PORT);
-			multicastSocket.send(packet);
-			bos.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}}
+		if (new Random().nextBoolean()) {
+			try {
+				ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
+				ObjectOutput out = null;
+				out = new ObjectOutputStream(bos);
+				out.writeObject(msg);
+				out.flush();
+				byte[] bytes = bos.toByteArray();
+				DatagramPacket packet = new DatagramPacket(bytes, bytes.length,
+						InetAddress.getByName(MULTICAST_ADDRESS), MULTICAST_PORT);
+				multicastSocket.send(packet);
+				bos.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 
 	/**
@@ -251,7 +252,7 @@ public class ReliableChannel {
 				if (acksReceived.get(sequenceNumber) == null)
 					return;
 				Event retransmission = historyBuffer.get(sequenceNumber);
-				System.out.println("Time Expired, retransmission... \nEvent: "+retransmission.eventId);
+				System.out.println("Time Expired, retransmission... \nEvent: " + retransmission.eventId);
 				historyBuffer.remove(sequenceNumber);
 				acksReceived.remove(sequenceNumber);
 				sendMessage(retransmission);

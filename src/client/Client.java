@@ -1,40 +1,51 @@
 package client;
 
 import java.rmi.RemoteException;
+import java.util.InputMismatchException;
 import java.util.Scanner;
 
 import server.ServerRemoteInterface;
 
 public class Client {
-	
+
 	ServerRemoteInterface server;
-	
+
 	public Client(ServerRemoteInterface stub) {
 		server = stub;
 	}
-	
+
 	public void request() throws RemoteException {
 		Scanner scan = new Scanner(System.in);
 		String input = "";
-		while(!(input.equals("q") || input.equals("4"))) {
-			System.out.println("Inserisci l'operazione:\n1)read\n2)write\n3)print\n4)q (per uscire)\n");
+		while (!(input.equals("q") || input.equals("4"))) {
+			System.out.println("Choose the operation you want to perform:\n1)read\n2)write\n3)print\n4)q (quit)\n");
 			input = scan.nextLine();
-			switch(input){
+			switch (input) {
 			case "read":
 			case "1":
-				System.out.println("Inserisci l'id del dato che vuoi leggere:\n");
-				int idRead = scan.nextInt();
-				System.out.println("Valore="+server.read(idRead)+"\n");
-				scan = new Scanner(System.in);
+				try {
+					System.out.println("Insert the id of the element you want to read:\n");
+					int idRead = scan.nextInt();
+					System.out.println("Value=" + server.read(idRead) + "\n");
+					scan = new Scanner(System.in);
+				} catch (InputMismatchException e) {
+					System.out.println("Invalid Input!");
+					scan = new Scanner(System.in);
+				}
 				break;
 			case "write":
 			case "2":
-				System.out.println("inserisci l'id del dato che vuoi modificare/aggiungere:\n");
-				int idWrite = scan.nextInt();
-				System.out.println("Inserisci il valore del dato");
-				int value = scan.nextInt();
-				server.write(idWrite, value);
-				scan = new Scanner(System.in);
+				try {
+					System.out.println("Insert the id of the element you want to edit/add:\n");
+					int idWrite = scan.nextInt();
+					System.out.println("Insert the value");
+					int value = scan.nextInt();
+					server.write(idWrite, value);
+					scan = new Scanner(System.in);
+				} catch (InputMismatchException e) {
+					System.out.println("Invalid Input!");
+					scan = new Scanner(System.in);
+				}
 				break;
 			case "print":
 			case "3":
@@ -44,10 +55,10 @@ public class Client {
 				break;
 			case "q":
 			case "4":
-				System.out.println("Uscita");
+				System.out.println("Exit...");
 				break;
 			default:
-				System.out.println("Input non corretto\n");
+				System.out.println("Invalid Input!\n");
 			}
 		}
 		scan.close();
