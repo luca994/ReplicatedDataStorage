@@ -117,7 +117,6 @@ public class ReliableChannel {
 			acksReceived.put(currentSequenceNumber, 0);
 			Timer timer = new Timer();
 			timers.put(currentSequenceNumber, timer);
-			// TODO scegliere un tempo adatto ora ho messo 2 secondi
 			timer.schedule(new Retransmit(currentSequenceNumber), 2000);
 		}
 		try {

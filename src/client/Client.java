@@ -18,7 +18,9 @@ public class Client {
 		Scanner scan = new Scanner(System.in);
 		String input = "";
 		while (!(input.equals("q") || input.equals("4"))) {
-			System.out.println("Choose the operation you want to perform:\n1)read\n2)write\n3)print\n4)q (quit)\n");
+			printBorder();
+			System.out.println("Choose the operation you want to perform:\n1)read\n2)write\n3)print\n4)q (quit)");
+			printBorder();
 			input = scan.nextLine();
 			switch (input) {
 			case "read":
@@ -62,5 +64,9 @@ public class Client {
 			}
 		}
 		scan.close();
+	}
+	private void printBorder() {
+		System.out.println("=============================================================");
+		System.out.flush();
 	}
 }
