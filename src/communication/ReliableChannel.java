@@ -123,19 +123,24 @@ public class ReliableChannel {
 		}
 		if (new Random().nextBoolean()) {
 			try {
-				ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
-				ObjectOutput out = null;
-				out = new ObjectOutputStream(bos);
-				out.writeObject(msg);
-				out.flush();
-				byte[] bytes = bos.toByteArray();
-				DatagramPacket packet = new DatagramPacket(bytes, bytes.length,
-						InetAddress.getByName(MULTICAST_ADDRESS), MULTICAST_PORT);
-				multicastSocket.send(packet);
-				bos.close();
-			} catch (IOException e) {
+				Thread.sleep(2500);
+			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
+		}
+		try {
+			ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
+			ObjectOutput out = null;
+			out = new ObjectOutputStream(bos);
+			out.writeObject(msg);
+			out.flush();
+			byte[] bytes = bos.toByteArray();
+			DatagramPacket packet = new DatagramPacket(bytes, bytes.length, InetAddress.getByName(MULTICAST_ADDRESS),
+					MULTICAST_PORT);
+			multicastSocket.send(packet);
+			bos.close();
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 
