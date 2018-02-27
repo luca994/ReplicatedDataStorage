@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -27,7 +28,7 @@ public class ReliableChannel {
 	private int groupLength;
 	private int currentSequenceNumber;
 	private final int processId;
-	private LamportAlgorithm lamportAlgorithm;
+	private BlockingQueue<Event> eventReceivedQueue;
 	/**
 	 * This variable is used as a mutex
 	 */
@@ -67,14 +68,14 @@ public class ReliableChannel {
 	 * @param groupLength
 	 * @param lamportAlgorithm
 	 */
-	public ReliableChannel(int processId, int groupLength, LamportAlgorithm lamportAlgorithm) {
+	public ReliableChannel(int processId, int groupLength, BlockingQueue<Event> eventReceivedQueue) {
 		this.receiverThread = new Thread(new Receiver());
 		try {
 			startConnection(MULTICAST_PORT, MULTICAST_ADDRESS);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		this.lamportAlgorithm = lamportAlgorithm;
+		this.eventReceivedQueue = eventReceivedQueue;
 		this.groupLength = groupLength;
 		this.processId = processId;
 		this.timers = new ConcurrentHashMap<Integer, Timer>();
@@ -217,7 +218,11 @@ public class ReliableChannel {
 			sendMessage(ack);
 			if (newEvent(message)) {
 				eventReceived.add(message.eventId);
-				lamportAlgorithm.receiveEvent(message);
+				try {
+					eventReceivedQueue.put(message);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 			}
 		}
 	}

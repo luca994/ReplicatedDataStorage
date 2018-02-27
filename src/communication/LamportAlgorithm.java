@@ -7,9 +7,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 
-public class LamportAlgorithm {
+public class LamportAlgorithm implements Runnable {
 
 	private ReliableChannel reliableChannel;
 	private PriorityBlockingQueue<Message> writeQueue;
@@ -17,10 +18,10 @@ public class LamportAlgorithm {
 	private int groupSize;
 	private Integer logicalClock;
 	private Object lock = new Object();
-
 	private ExecutorService exec = Executors.newCachedThreadPool();
 	private int processId;
 	private BlockingQueue<Message> messageDelivered;
+	private BlockingQueue<Event> eventReceived;
 
 	public LamportAlgorithm(int processId, int groupLength, BlockingQueue<Message> messageQueue) {
 		this.processId = processId;
@@ -30,8 +31,10 @@ public class LamportAlgorithm {
 		groupSize = groupLength;
 		writeQueue = new PriorityBlockingQueue<>(11, c);
 		ackCount = new ConcurrentHashMap<>();
-		reliableChannel = new ReliableChannel(processId, groupLength, this);
+		eventReceived = new LinkedBlockingQueue<Event>();
+		reliableChannel = new ReliableChannel(processId, groupLength, eventReceived);
 		exec.submit(new CheckQueue());
+		exec.submit(this);
 	}
 
 	public synchronized void write(int dataId, int integerValue, int processId) {
@@ -39,16 +42,18 @@ public class LamportAlgorithm {
 		Message message = new Message(processId, logicalClock, dataId, integerValue);
 		writeQueue.put(message);
 		reliableChannel.sendMessage(message);
-		Thread t = new Thread(new CheckSameClock(message));
-		t.start();
+		exec.submit(new CheckSameClock(message));
 	}
 
-	public void receiveEvent(Event e) {
-		lamportClockUpdate(e);
-		if (e instanceof Message)
-			messageHandler((Message) e);
-		else if (e instanceof LamportAck)
-			ackHandler((LamportAck) e);
+	public void receiveEvent() throws InterruptedException {
+		while (true) {
+			Event e = eventReceived.take();
+			lamportClockUpdate(e);
+			if (e instanceof Message)
+				messageHandler((Message) e);
+			else if (e instanceof LamportAck)
+				ackHandler((LamportAck) e);
+		}
 	}
 
 	private synchronized void messageHandler(Message m) {
@@ -150,5 +155,14 @@ public class LamportAlgorithm {
 				return false;
 		}
 
+	}
+
+	@Override
+	public void run() {
+		try {
+			receiveEvent();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 }
