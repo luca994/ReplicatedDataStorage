@@ -79,6 +79,15 @@ public class LamportAlgorithm implements Runnable {
 		logicalClock = Math.max(logicalClock, e.getLogicalClock()) + 1;
 	}
 
+	@Override
+	public void run() {
+		try {
+			receiveEvent();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
+
 	private class CheckSameClock implements Runnable {
 
 		private Message messageToCheck;
@@ -157,12 +166,20 @@ public class LamportAlgorithm implements Runnable {
 
 	}
 
-	@Override
-	public void run() {
-		try {
-			receiveEvent();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+	private class Order implements Comparator<Message> {
+
+		@Override
+		public int compare(Message o1, Message o2) {
+			if (o1.getSequenceNumber() < o2.getSequenceNumber())
+				return -1;
+			else if (o1.getSequenceNumber() > o2.getSequenceNumber())
+				return 1;
+			else if (o1.getProcessId() > o2.getProcessId())
+				return 1;
+			else
+				return -1;
 		}
+
 	}
+
 }
