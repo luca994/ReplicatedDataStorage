@@ -42,6 +42,7 @@ public class MainServer {
 			registry.bind("ServerRemote", serverMethods);
 			System.out.println("Register Ready!\n");
 			scan.close();
+			server.updateDatabase();
 		} catch (RemoteException | AlreadyBoundException e) {
 			e.printStackTrace();
 		}

@@ -12,7 +12,6 @@ import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
@@ -120,13 +119,10 @@ public class ReliableChannel {
 			timers.put(currentSequenceNumber, timer);
 			timer.schedule(new Retransmit(currentSequenceNumber), 2000);
 		}
-		if (new Random().nextBoolean()) {
-			try {
-				Thread.sleep(2500);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
+		/*
+		 * if (new Random().nextBoolean()) { try { Thread.sleep(2500); } catch
+		 * (InterruptedException e) { e.printStackTrace(); } }
+		 */
 		try {
 			ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
 			ObjectOutput out = null;

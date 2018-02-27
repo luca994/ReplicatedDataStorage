@@ -2,11 +2,12 @@ package communication;
 
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.PriorityBlockingQueue;
-
-import server.Server;
 
 public class LamportAlgorithm {
 
@@ -15,20 +16,22 @@ public class LamportAlgorithm {
 	private ConcurrentMap<String, Integer> ackCount;
 	private int groupSize;
 	private Integer logicalClock;
-	private Server server;
-	private Thread updateThread;
 	private Object lock = new Object();
 
-	public LamportAlgorithm(int processId, int groupLength, Server server) {
-		updateThread = new Thread(new CheckQueue());
+	private ExecutorService exec = Executors.newCachedThreadPool();
+	private int processId;
+	private BlockingQueue<Message> messageDelivered;
+
+	public LamportAlgorithm(int processId, int groupLength, BlockingQueue<Message> messageQueue) {
+		this.processId = processId;
 		logicalClock = 0;
-		this.server = server;
+		this.messageDelivered = messageQueue;
 		Comparator<Message> c = new Order();
 		groupSize = groupLength;
 		writeQueue = new PriorityBlockingQueue<>(11, c);
 		ackCount = new ConcurrentHashMap<>();
 		reliableChannel = new ReliableChannel(processId, groupLength, this);
-		updateThread.start();
+		exec.submit(new CheckQueue());
 	}
 
 	public synchronized void write(int dataId, int integerValue, int processId) {
@@ -50,8 +53,7 @@ public class LamportAlgorithm {
 
 	private synchronized void messageHandler(Message m) {
 		writeQueue.put(m);
-		Thread t = new Thread(new CheckSameClock(m));
-		t.start();
+		exec.submit(new CheckSameClock(m));
 	}
 
 	private void ackHandler(LamportAck a) {
@@ -84,7 +86,7 @@ public class LamportAlgorithm {
 
 		private synchronized void sendAck() {
 			logicalClock++;
-			LamportAck ack = new LamportAck(server.getProcessId(), logicalClock, messageToCheck.getLogicalClock(),
+			LamportAck ack = new LamportAck(processId, logicalClock, messageToCheck.getLogicalClock(),
 					messageToCheck.getProcessId());
 			ackHandler(ack);
 			reliableChannel.sendMessage(ack);
@@ -104,11 +106,12 @@ public class LamportAlgorithm {
 			while (i.hasNext()) {
 				messageTemp = i.next();
 				if (messageTemp.getLogicalClock() == messageToCheck.getLogicalClock()
-						&& server.getProcessId() > messageToCheck.getProcessId()) {
+						&& processId > messageToCheck.getProcessId()) {
 					sendAck();
 					return;
 				}
-				if (messageTemp.getLogicalClock() == messageToCheck.getLogicalClock() && messageTemp.getEventId() != messageToCheck.getEventId())
+				if (messageTemp.getLogicalClock() == messageToCheck.getLogicalClock()
+						&& messageTemp.getEventId() != messageToCheck.getEventId())
 					differentClock = false;
 			}
 			if (differentClock == true)
@@ -124,7 +127,7 @@ public class LamportAlgorithm {
 				try {
 					while (checkQueueHead()) {
 						Message m = writeQueue.poll();
-						server.updateDatabase(m);
+						messageDelivered.put(m);
 						ackCount.remove(m.getEventId());
 					}
 					synchronized (lock) {
