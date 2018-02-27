@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,6 +23,7 @@ public class LamportAlgorithm implements Runnable {
 	private int processId;
 	private BlockingQueue<Message> messageDelivered;
 	private BlockingQueue<Event> eventReceived;
+	private ConcurrentLinkedQueue<Message> messageToAck;
 
 	public LamportAlgorithm(int processId, int groupLength, BlockingQueue<Message> messageQueue) {
 		this.processId = processId;
@@ -58,6 +60,7 @@ public class LamportAlgorithm implements Runnable {
 
 	private synchronized void messageHandler(Message m) {
 		writeQueue.put(m);
+		ackHandler(new LamportAck(processId, logicalClock, m.getLogicalClock(), m.getProcessId()));
 		exec.submit(new CheckSameClock(m));
 	}
 
@@ -88,6 +91,15 @@ public class LamportAlgorithm implements Runnable {
 		}
 	}
 
+	private synchronized void sendAck(Message messageToCheck) {
+		messageToAck.remove(messageToCheck);
+		logicalClock++;
+		LamportAck ack = new LamportAck(processId, logicalClock, messageToCheck.getLogicalClock(),
+				messageToCheck.getProcessId());
+		reliableChannel.sendMessage(ack);
+		return;
+	}
+
 	private class CheckSameClock implements Runnable {
 
 		private Message messageToCheck;
@@ -98,39 +110,43 @@ public class LamportAlgorithm implements Runnable {
 			differentClock = true;
 		}
 
-		private synchronized void sendAck() {
-			logicalClock++;
-			LamportAck ack = new LamportAck(processId, logicalClock, messageToCheck.getLogicalClock(),
-					messageToCheck.getProcessId());
-			ackHandler(ack);
-			reliableChannel.sendMessage(ack);
-			return;
-		}
-
 		@Override
 		public synchronized void run() {
-			Iterator<Message> i = writeQueue.iterator();
-			Message messageTemp = null;
-			if (i.hasNext()) {
-				messageTemp = i.next();
-				i = writeQueue.iterator();
-			}
-			if (messageTemp == null)
-				differentClock = false;
-			while (i.hasNext()) {
-				messageTemp = i.next();
-				if (messageTemp.getLogicalClock() == messageToCheck.getLogicalClock()
-						&& processId > messageToCheck.getProcessId()) {
-					sendAck();
+			while (true) {
+				Iterator<Message> i = writeQueue.iterator();
+				Message messageTemp = null;
+				if (i.hasNext()) {
+					messageTemp = i.next();
+					i = writeQueue.iterator();
+				}
+				if (messageTemp == null)
+					differentClock = false;
+				while (i.hasNext()) {
+					messageTemp = i.next();
+					if (messageTemp.getLogicalClock() == messageToCheck.getLogicalClock()
+							&& processId > messageToCheck.getProcessId()) {
+						sendAck(messageToCheck);
+						return;
+					}
+					if (messageTemp.getLogicalClock() == messageToCheck.getLogicalClock()
+							&& messageTemp.getEventId() != messageToCheck.getEventId())
+						differentClock = false;
+				}
+				if (differentClock == true) {
+					sendAck(messageToCheck);
 					return;
 				}
-				if (messageTemp.getLogicalClock() == messageToCheck.getLogicalClock()
-						&& messageTemp.getEventId() != messageToCheck.getEventId())
-					differentClock = false;
+				differentClock = true;
+				if (!messageToAck.contains(messageToCheck)) {
+					messageToAck.add(messageToCheck);
+				}
+
+				try {
+					Thread.sleep(500);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 			}
-			if (differentClock == true)
-				sendAck();
-			differentClock = true;
 		}
 	}
 
@@ -143,6 +159,9 @@ public class LamportAlgorithm implements Runnable {
 						Message m = writeQueue.poll();
 						messageDelivered.put(m);
 						ackCount.remove(m.getEventId());
+						if (messageToAck.contains(m)) {
+							sendAck(m);
+						}
 					}
 					synchronized (lock) {
 						lock.wait();
