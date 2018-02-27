@@ -12,6 +12,7 @@ import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.BlockingQueue;
@@ -118,12 +119,38 @@ public class ReliableChannel {
 			acksReceived.put(currentSequenceNumber, 0);
 			Timer timer = new Timer();
 			timers.put(currentSequenceNumber, timer);
-			timer.schedule(new Retransmit(currentSequenceNumber), 2000);
+			timer.schedule(new Retransmit(currentSequenceNumber), 1000);
 		}
-		/*
-		 * if (new Random().nextBoolean()) { try { Thread.sleep(2500); } catch
-		 * (InterruptedException e) { e.printStackTrace(); } }
-		 */
+/*DELAY
+		if (new Random().nextBoolean()) {
+			Thread t = new Thread(new Runnable() {
+
+				@Override
+				public void run() {
+					try {
+						Thread.sleep(1500);
+						ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
+						ObjectOutput out = null;
+						out = new ObjectOutputStream(bos);
+						out.writeObject(msg);
+						out.flush();
+						byte[] bytes = bos.toByteArray();
+						DatagramPacket packet = new DatagramPacket(bytes, bytes.length,
+								InetAddress.getByName(MULTICAST_ADDRESS), MULTICAST_PORT);
+						multicastSocket.send(packet);
+						bos.close();
+					} catch (IOException | InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+			});
+			t.start();
+			return;
+		}
+*/
+		if (new Random().nextBoolean())
+			return;
+		
 		try {
 			ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
 			ObjectOutput out = null;
