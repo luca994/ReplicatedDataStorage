@@ -26,6 +26,7 @@ public class LamportAlgorithm implements Runnable {
 	private ConcurrentLinkedQueue<Message> messageToAck;
 
 	public LamportAlgorithm(int processId, int groupLength, BlockingQueue<Message> messageQueue) {
+		messageToAck = new ConcurrentLinkedQueue<>();
 		this.processId = processId;
 		logicalClock = 0;
 		this.messageDelivered = messageQueue;
@@ -44,6 +45,8 @@ public class LamportAlgorithm implements Runnable {
 		Message message = new Message(processId, logicalClock, dataId, integerValue);
 		writeQueue.put(message);
 		reliableChannel.sendMessage(message);
+		System.out.println("messaggio inviato, avvio checkSameClock\n");
+		ackHandler(new LamportAck(processId, logicalClock, message.getLogicalClock(), message.getProcessId()));
 		exec.submit(new CheckSameClock(message));
 	}
 
@@ -61,6 +64,7 @@ public class LamportAlgorithm implements Runnable {
 	private synchronized void messageHandler(Message m) {
 		writeQueue.put(m);
 		ackHandler(new LamportAck(processId, logicalClock, m.getLogicalClock(), m.getProcessId()));
+		System.out.println("messagio "+m.getEventId()+" ricevuto, messo in coda e inserito l'ack, ackCount="+ackCount.get(m.getEventId()+", avvio checkSameClock\n"));
 		exec.submit(new CheckSameClock(m));
 	}
 
@@ -97,7 +101,7 @@ public class LamportAlgorithm implements Runnable {
 		LamportAck ack = new LamportAck(processId, logicalClock, messageToCheck.getLogicalClock(),
 				messageToCheck.getProcessId());
 		reliableChannel.sendMessage(ack);
-		return;
+		System.out.println("ack del messaggio "+messageToCheck.getEventId()+" inviato\n");
 	}
 
 	private class CheckSameClock implements Runnable {
@@ -134,6 +138,7 @@ public class LamportAlgorithm implements Runnable {
 				}
 				if (differentClock == true) {
 					sendAck(messageToCheck);
+					System.out.println("messaggio "+messageToCheck.getEventId()+" controllato, nessun clock uguale\n");
 					return;
 				}
 				differentClock = true;
@@ -159,13 +164,17 @@ public class LamportAlgorithm implements Runnable {
 						Message m = writeQueue.poll();
 						messageDelivered.put(m);
 						ackCount.remove(m.getEventId());
+						System.out.println("messaggio scritto nel database e rimosso dalla writeQueue\n");
 						if (messageToAck.contains(m)) {
 							sendAck(m);
+							System.out.println("messaggio "+m.getEventId()+", ack inviato (era nella messageToAck)\n");
 						}
 					}
+					/*
 					synchronized (lock) {
 						lock.wait();
-					}
+					}*/
+					Thread.sleep(500); //dovrebbe essere sostituito con una wait sincronizzata con gli altri thread di checkSameClock
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
