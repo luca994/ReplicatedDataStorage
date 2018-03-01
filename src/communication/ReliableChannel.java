@@ -19,6 +19,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 
 public class ReliableChannel {
 
@@ -33,16 +34,11 @@ public class ReliableChannel {
 	private int currentSequenceNumber;
 	private BlockingQueue<Event> eventReceivedQueue;
 	private BlockingQueue<Event> eventToSend;
-	private String lastEventSent;
+	private Semaphore sem;
 	/**
 	 * This variable is used as a mutex
 	 */
 	private Object lock1;
-	
-	/**
-	 * This variable is used as a mutex
-	 */
-	private Object lock2;
 
 	/**
 	 * This is the list of eventId of all the events received
@@ -95,9 +91,8 @@ public class ReliableChannel {
 		this.historyBuffer = new ConcurrentHashMap<Integer, Event>();
 		this.currentSequenceNumber = 0;
 		this.eventReceived = new ArrayList<String>();
-		this.lastEventSent = new String();
+		this.sem = new Semaphore(0);
 		this.lock1 = new Object();
-		this.lock2 = new Object();
 	}
 
 	/**
@@ -126,19 +121,17 @@ public class ReliableChannel {
 
 		@Override
 		public void run() {
-			while (true)
+			while (true) {
+				Event e;
 				try {
-					Event e;
 					e = eventToSend.take();
 					sendMessage(e);
-					synchronized (lock2) {
-						while (lastEventSent.equals(e.getEventId())) {
-							lock2.wait();
-						}
-					}
-				} catch (InterruptedException e) {
-					e.printStackTrace();
+					sem.acquire();
+					System.out.println("Message: " + e.getEventId() + " Delivered2");
+				} catch (InterruptedException e1) {
+					e1.printStackTrace();
 				}
+			}
 		}
 	}
 
@@ -249,12 +242,10 @@ public class ReliableChannel {
 					// System.out.println(
 					// "Message: " + historyBuffer.get(targetSN).getEventId() + " delivered to all
 					// the members");
-					synchronized (lock2) {
-						lastEventSent = historyBuffer.get(targetSN).getEventId();
-						lock2.notify();
-					}
+					System.out.println("Message: " + historyBuffer.get(targetSN).getEventId() + " Delivered1");
 					historyBuffer.remove(targetSN);
 					acksReceived.remove(targetSN);
+					sem.release();
 				}
 			}
 		}

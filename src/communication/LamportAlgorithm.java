@@ -73,9 +73,9 @@ public class LamportAlgorithm implements Runnable {
 		logicalClock++;
 		Message message = new Message(processId, logicalClock, dataId, integerValue);
 		reliableChannel.enqueueEvent(message);
-		messageHandler(message);
 		System.out.println("Message: " + message.getEventId() + " with element: <" + message.getDataId() + ","
 				+ message.getIntegerValue() + ">" + " Sent");
+		messageHandler(message);
 	}
 
 	public void receiveEvent() throws InterruptedException {
@@ -222,8 +222,12 @@ public class LamportAlgorithm implements Runnable {
 
 	}
 
+<<<<<<< HEAD
 	/*private void printQueue() {
 		PriorityBlockingQueue<Message> q = new PriorityBlockingQueue<Message>(writeQueue);
+=======
+/*	private void printQueue() {
+>>>>>>> branch 'master' of https://Ric18@bitbucket.org/Ric18/distributeddatabase.git
 		System.out.println("Queue:\n");
 		while(!q.isEmpty()) {
 			Message m = q.poll();
