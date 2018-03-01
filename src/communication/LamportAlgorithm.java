@@ -1,10 +1,8 @@
 package communication;
 
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -13,77 +11,113 @@ import java.util.concurrent.PriorityBlockingQueue;
 
 public class LamportAlgorithm implements Runnable {
 
-	private ReliableChannel reliableChannel;
-	private PriorityBlockingQueue<Message> writeQueue;
-	private ConcurrentMap<String, Integer> ackCount;
-	private int groupSize;
-	private Integer logicalClock;
-	private Object lock = new Object();
-	private ExecutorService exec = Executors.newCachedThreadPool();
 	private int processId;
+	private int groupSize;
+	private ExecutorService exec;
+
+	/**
+	 * Is the current logical clock
+	 */
+	private Integer logicalClock;
+
+	/**
+	 * Is the reliable channel from which the servers exchange messages
+	 */
+	private ReliableChannel reliableChannel;
+
+	/**
+	 * Is the queue that reorders the messages based on logical clock
+	 */
+	private PriorityBlockingQueue<Message> writeQueue;
+
+	/**
+	 * The key is the event id the value is the number of Lamportacks received
+	 */
+	private ConcurrentMap<String, Integer> ackCount;
+
+	/**
+	 * This variable is used as a mutex
+	 */
+	private Object lock;
+
+	/**
+	 * This queue is the queue in which we place a message when is to deliver to the
+	 * application (we have received all the Lamport acks and is at the head of the
+	 * queue. (PRODUCER)
+	 */
 	private BlockingQueue<Message> messageDelivered;
+
+	/**
+	 * This queue is the queue from which we take the events received from the
+	 * channel (CONSUMER)
+	 */
 	private BlockingQueue<Event> eventReceived;
-	private ConcurrentLinkedQueue<Message> messageToAck;
 
 	public LamportAlgorithm(int processId, int groupLength, BlockingQueue<Message> messageQueue) {
-		messageToAck = new ConcurrentLinkedQueue<>();
+		this.logicalClock = 0;
 		this.processId = processId;
-		logicalClock = 0;
+		this.groupSize = groupLength;
 		this.messageDelivered = messageQueue;
+		lock = new Object();
 		Comparator<Message> c = new Order();
-		groupSize = groupLength;
 		writeQueue = new PriorityBlockingQueue<>(11, c);
 		ackCount = new ConcurrentHashMap<>();
 		eventReceived = new LinkedBlockingQueue<Event>();
 		reliableChannel = new ReliableChannel(processId, groupLength, eventReceived);
+		this.exec = Executors.newCachedThreadPool();
 		exec.submit(new CheckQueue());
 		exec.submit(this);
 	}
 
-	public synchronized void write(int dataId, int integerValue, int processId) {
+	public synchronized void write(int dataId, int integerValue) {
 		logicalClock++;
 		Message message = new Message(processId, logicalClock, dataId, integerValue);
-		writeQueue.put(message);
-		reliableChannel.sendMessage(message);
-		System.out.println("messaggio inviato, avvio checkSameClock\n");
-		ackHandler(new LamportAck(processId, logicalClock, message.getLogicalClock(), message.getProcessId()));
-		exec.submit(new CheckSameClock(message));
+		reliableChannel.enqueueEvent(message);
+		messageHandler(message);
+		System.out.println("Message: " + message.getEventId() + " with element: <" + message.getDataId() + ","
+				+ message.getIntegerValue() + ">" + " Sent");
 	}
 
 	public void receiveEvent() throws InterruptedException {
 		while (true) {
 			Event e = eventReceived.take();
 			lamportClockUpdate(e);
-			if (e instanceof Message)
+			if (e instanceof Message) {
+				System.out.println("Message: " + e.getEventId() + " with element: <" + ((Message) e).getDataId() + ","
+						+ ((Message) e).getIntegerValue() + ">" + " Received");
 				messageHandler((Message) e);
-			else if (e instanceof LamportAck)
+			} else if (e instanceof LamportAck) {
+				System.out.println("Ack: " + e.getEventId() + " related to message: "
+						+ ((LamportAck) e).getIdRelatedMessage() + " Received");
 				ackHandler((LamportAck) e);
+			}
 		}
+	}
+
+	private void lamportClockUpdate(Event e) {
+		logicalClock = Math.max(logicalClock, e.getLogicalClock()) + 1;
 	}
 
 	private synchronized void messageHandler(Message m) {
 		writeQueue.put(m);
+		printQueue();
 		ackHandler(new LamportAck(processId, logicalClock, m.getLogicalClock(), m.getProcessId()));
-		System.out.println("messagio "+m.getEventId()+" ricevuto, messo in coda e inserito l'ack, ackCount="+ackCount.get(m.getEventId()+", avvio checkSameClock\n"));
 		exec.submit(new CheckSameClock(m));
 	}
 
-	private void ackHandler(LamportAck a) {
+	private synchronized void ackHandler(LamportAck a) {
 		Integer count = ackCount.get(a.getIdRelatedMessage());
 		if (count == null) {
 			ackCount.put(a.getIdRelatedMessage(), 1);
-		} else if (count < groupSize) {
-			int value = count.intValue();
-			value++;
-			ackCount.put(a.getIdRelatedMessage(), value);
+		} else {
+			count++;
+			ackCount.replace(a.getIdRelatedMessage(), count);
+			if (count == groupSize) {
+				synchronized (lock) {
+					lock.notify();
+				}
+			}
 		}
-		synchronized (lock) {
-			lock.notify();
-		}
-	}
-
-	private synchronized void lamportClockUpdate(Event e) {
-		logicalClock = Math.max(logicalClock, e.getLogicalClock()) + 1;
 	}
 
 	@Override
@@ -95,59 +129,58 @@ public class LamportAlgorithm implements Runnable {
 		}
 	}
 
-	private synchronized void sendAck(Message messageToCheck) {
-		messageToAck.remove(messageToCheck);
+	private synchronized void sendAck(Message messageToAck) {
 		logicalClock++;
-		LamportAck ack = new LamportAck(processId, logicalClock, messageToCheck.getLogicalClock(),
-				messageToCheck.getProcessId());
-		reliableChannel.sendMessage(ack);
-		System.out.println("ack del messaggio "+messageToCheck.getEventId()+" inviato\n");
+		LamportAck ack = new LamportAck(processId, logicalClock, messageToAck.getLogicalClock(),
+				messageToAck.getProcessId());
+		reliableChannel.enqueueEvent(ack);
 	}
 
 	private class CheckSameClock implements Runnable {
 
 		private Message messageToCheck;
-		private boolean differentClock;
+		private boolean condition1;
+		private boolean condition2;
 
 		public CheckSameClock(Message message) {
 			messageToCheck = message;
-			differentClock = true;
+			condition1 = false;
+			condition2 = false;
 		}
 
 		@Override
 		public synchronized void run() {
+			if (messageToCheck.getProcessId() == processId) {
+				sendAck(messageToCheck);
+				return;
+			}
 			while (true) {
-				Iterator<Message> i = writeQueue.iterator();
-				Message messageTemp = null;
-				if (i.hasNext()) {
-					messageTemp = i.next();
-					i = writeQueue.iterator();
-				}
-				if (messageTemp == null)
-					differentClock = false;
-				while (i.hasNext()) {
-					messageTemp = i.next();
-					if (messageTemp.getLogicalClock() == messageToCheck.getLogicalClock()
-							&& processId > messageToCheck.getProcessId()) {
-						sendAck(messageToCheck);
-						return;
+				for (Message m : writeQueue) {
+					if (m.getLogicalClock() == messageToCheck.getLogicalClock() && m.getProcessId() == processId) {
+						condition1 = true;
+						break;
 					}
-					if (messageTemp.getLogicalClock() == messageToCheck.getLogicalClock()
-							&& messageTemp.getEventId() != messageToCheck.getEventId())
-						differentClock = false;
 				}
-				if (differentClock == true) {
+				if (condition1 == false) {
 					sendAck(messageToCheck);
-					System.out.println("messaggio "+messageToCheck.getEventId()+" controllato, nessun clock uguale\n");
 					return;
 				}
-				differentClock = true;
-				if (!messageToAck.contains(messageToCheck)) {
-					messageToAck.add(messageToCheck);
+				if (condition1 == true) {
+					for (Message m : writeQueue) {
+						if (m.getLogicalClock() == messageToCheck.getLogicalClock() && m.getProcessId() > processId) {
+							condition2 = true;
+							break;
+						}
+					}
 				}
-
+				if (condition2 == false) {
+					sendAck(messageToCheck);
+					return;
+				}
+				condition1 = false;
+				condition2 = false;
 				try {
-					Thread.sleep(500);
+					Thread.sleep(1000);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -163,18 +196,13 @@ public class LamportAlgorithm implements Runnable {
 					while (checkQueueHead()) {
 						Message m = writeQueue.poll();
 						messageDelivered.put(m);
+						System.out.println("Message: " + m.getEventId() + " with element: <" + m.getDataId() + ","
+								+ m.getIntegerValue() + ">" + " Written on DB");
 						ackCount.remove(m.getEventId());
-						System.out.println("messaggio scritto nel database e rimosso dalla writeQueue\n");
-						if (messageToAck.contains(m)) {
-							sendAck(m);
-							System.out.println("messaggio "+m.getEventId()+", ack inviato (era nella messageToAck)\n");
-						}
 					}
-					/*
 					synchronized (lock) {
 						lock.wait();
-					}*/
-					Thread.sleep(500); //dovrebbe essere sostituito con una wait sincronizzata con gli altri thread di checkSameClock
+					}
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -194,13 +222,24 @@ public class LamportAlgorithm implements Runnable {
 
 	}
 
+	private void printQueue() {
+		System.out.println("Queue:\n");
+		for (Message m : writeQueue) {
+			System.out.println("Message: " + m.getEventId());
+			if (m == writeQueue.element())
+				System.out.println(" (queue head)\n");
+			else
+				System.out.println("\n");
+		}
+	}
+	
 	private class Order implements Comparator<Message> {
 
 		@Override
-		public int compare(Message o1, Message o2) {
-			if (o1.getSequenceNumber() < o2.getSequenceNumber())
+		public synchronized int compare(Message o1, Message o2) {
+			if (o1.getLogicalClock() < o2.getLogicalClock())
 				return -1;
-			else if (o1.getSequenceNumber() > o2.getSequenceNumber())
+			else if (o1.getLogicalClock() > o2.getLogicalClock())
 				return 1;
 			else if (o1.getProcessId() > o2.getProcessId())
 				return 1;
