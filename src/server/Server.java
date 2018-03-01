@@ -31,7 +31,7 @@ public class Server {
 	}
 
 	public void write(int dataId, int integerValue) {
-		lamportAlgorithm.write(dataId, integerValue, processId);
+		lamportAlgorithm.write(dataId, integerValue);
 	}
 
 	public synchronized void updateDatabase() {
