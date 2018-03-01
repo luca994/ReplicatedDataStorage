@@ -100,7 +100,7 @@ public class LamportAlgorithm implements Runnable {
 
 	private synchronized void messageHandler(Message m) {
 		writeQueue.put(m);
-		printQueue();
+		//printQueue();
 		ackHandler(new LamportAck(processId, logicalClock, m.getLogicalClock(), m.getProcessId()));
 		exec.submit(new CheckSameClock(m));
 	}
@@ -222,16 +222,18 @@ public class LamportAlgorithm implements Runnable {
 
 	}
 
-	private void printQueue() {
+	/*private void printQueue() {
+		PriorityBlockingQueue<Message> q = new PriorityBlockingQueue<Message>(writeQueue);
 		System.out.println("Queue:\n");
-		for (Message m : writeQueue) {
-			System.out.println("Message: " + m.getEventId());
+		while(!q.isEmpty()) {
+			Message m = q.poll();
+			System.out.println("Message: "+m.getEventId());
 			if (m == writeQueue.element())
 				System.out.println(" (queue head)\n");
 			else
 				System.out.println("\n");
 		}
-	}
+	}*/
 	
 	private class Order implements Comparator<Message> {
 
