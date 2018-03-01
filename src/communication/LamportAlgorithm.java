@@ -73,9 +73,9 @@ public class LamportAlgorithm implements Runnable {
 		logicalClock++;
 		Message message = new Message(processId, logicalClock, dataId, integerValue);
 		reliableChannel.enqueueEvent(message);
-		messageHandler(message);
 		System.out.println("Message: " + message.getEventId() + " with element: <" + message.getDataId() + ","
 				+ message.getIntegerValue() + ">" + " Sent");
+		messageHandler(message);
 	}
 
 	public void receiveEvent() throws InterruptedException {
@@ -100,7 +100,7 @@ public class LamportAlgorithm implements Runnable {
 
 	private synchronized void messageHandler(Message m) {
 		writeQueue.put(m);
-		printQueue();
+		//printQueue();
 		ackHandler(new LamportAck(processId, logicalClock, m.getLogicalClock(), m.getProcessId()));
 		exec.submit(new CheckSameClock(m));
 	}
@@ -222,7 +222,7 @@ public class LamportAlgorithm implements Runnable {
 
 	}
 
-	private void printQueue() {
+/*	private void printQueue() {
 		System.out.println("Queue:\n");
 		for (Message m : writeQueue) {
 			System.out.println("Message: " + m.getEventId());
@@ -231,7 +231,7 @@ public class LamportAlgorithm implements Runnable {
 			else
 				System.out.println("\n");
 		}
-	}
+	}*/
 	
 	private class Order implements Comparator<Message> {
 
