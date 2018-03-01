@@ -12,7 +12,6 @@ import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.BlockingQueue;
@@ -169,8 +168,11 @@ public class ReliableChannel {
 		 * InterruptedException e) { e.printStackTrace(); } } }); t.start(); return; }
 		 */
 
+		/* Send omission
+		 * 
 		if (new Random().nextBoolean())
 			return;
+		*/
 
 		try {
 			ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
