@@ -222,12 +222,8 @@ public class LamportAlgorithm implements Runnable {
 
 	}
 
-<<<<<<< HEAD
 	/*private void printQueue() {
 		PriorityBlockingQueue<Message> q = new PriorityBlockingQueue<Message>(writeQueue);
-=======
-/*	private void printQueue() {
->>>>>>> branch 'master' of https://Ric18@bitbucket.org/Ric18/distributeddatabase.git
 		System.out.println("Queue:\n");
 		while(!q.isEmpty()) {
 			Message m = q.poll();
