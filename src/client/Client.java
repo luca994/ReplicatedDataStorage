@@ -2,6 +2,7 @@ package client;
 
 import java.rmi.RemoteException;
 import java.util.InputMismatchException;
+import java.util.Random;
 import java.util.Scanner;
 
 import server.ServerRemoteInterface;
@@ -19,10 +20,10 @@ public class Client {
 		String input = "";
 		while (!(input.equals("q") || input.equals("4"))) {
 			printBorder();
-			System.out.println("Choose the operation you want to perform:\n1)read\n2)write\n3)print\n4)q (quit)");
+			System.out.println("Choose the operation you want to perform:\n1)Read\n2)Write\n3)Print\n4)Random write\n5)Quit");
 			printBorder();
 			input = scan.nextLine();
-			switch (input) {
+			switch (input.toLowerCase()) {
 			case "read":
 			case "1":
 				try {
@@ -56,8 +57,17 @@ public class Client {
 				System.out.println("Database printed on the server\n");
 				scan = new Scanner(System.in);
 				break;
-			case "q":
+			case "random":
 			case "4":
+				int idWrite = new Random().nextInt(200);
+				int value = new Random().nextInt(200);
+				server.write(idWrite, value);
+				System.out.println("Written: <"+idWrite+","+value+">");
+				scan = new Scanner(System.in);
+				break;
+			case "q":
+			case "quit":
+			case "5":
 				System.out.println("Exit...");
 				break;
 			default:

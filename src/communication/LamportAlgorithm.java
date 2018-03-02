@@ -225,7 +225,7 @@ public class LamportAlgorithm implements Runnable {
 				condition1 = false;
 				condition2 = false;
 				try {
-					Thread.sleep(1000);
+					Thread.sleep(500);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
