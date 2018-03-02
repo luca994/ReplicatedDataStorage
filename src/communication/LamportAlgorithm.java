@@ -11,7 +11,7 @@ import java.util.concurrent.PriorityBlockingQueue;
 
 public class LamportAlgorithm implements Runnable {
 
-	private final int processId;
+	private int processId;
 	private int groupSize;
 	private ExecutorService exec;
 

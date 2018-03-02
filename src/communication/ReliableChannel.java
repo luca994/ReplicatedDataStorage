@@ -12,7 +12,6 @@ import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.BlockingQueue;
@@ -145,8 +144,15 @@ public class ReliableChannel {
 			timer.schedule(new Retransmit(currentSequenceNumber), RETRANSMISSION_TIME);
 		}
 
+<<<<<<< HEAD
 		if (new Random().nextInt(100) >= 100 - PACKET_LOSS_PERCENTAGE)
+=======
+		/* Send omission
+		 * 
+		if (new Random().nextBoolean())
+>>>>>>> branch 'master' of https://luca994@bitbucket.org/Ric18/distributeddatabase.git
 			return;
+		*/
 
 		try {
 			ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
