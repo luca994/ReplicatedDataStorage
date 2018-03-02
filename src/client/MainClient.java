@@ -17,6 +17,9 @@ public class MainClient {
 			String ip = scan.nextLine();
 			System.out.println("Inserisci la porta del server");
 			int port = scan.nextInt();
+			if(ip.equals("")) {
+				ip="127.0.0.1";
+			}
 			Registry registry = LocateRegistry.getRegistry(ip, port);
 			ServerRemoteInterface stub = (ServerRemoteInterface) registry.lookup("ServerRemote");
 			

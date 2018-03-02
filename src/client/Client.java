@@ -18,7 +18,7 @@ public class Client {
 	public void request() throws RemoteException {
 		Scanner scan = new Scanner(System.in);
 		String input = "";
-		while (!(input.equals("q") || input.equals("4"))) {
+		while (!(input.equals("q") || input.equals("5"))) {
 			printBorder();
 			System.out.println("Choose the operation you want to perform:\n1)Read\n2)Write\n3)Print\n4)Random write\n5)Quit");
 			printBorder();
@@ -66,7 +66,6 @@ public class Client {
 				scan = new Scanner(System.in);
 				break;
 			case "q":
-			case "quit":
 			case "5":
 				System.out.println("Exit...");
 				break;
