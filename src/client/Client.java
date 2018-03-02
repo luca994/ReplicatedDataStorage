@@ -43,6 +43,7 @@ public class Client {
 					System.out.println("Insert the value");
 					int value = scan.nextInt();
 					server.write(idWrite, value);
+					System.out.println("Written: <"+idWrite+","+value+">");
 					scan = new Scanner(System.in);
 				} catch (InputMismatchException e) {
 					System.out.println("Invalid Input!");

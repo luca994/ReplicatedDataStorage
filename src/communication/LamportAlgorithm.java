@@ -11,7 +11,7 @@ import java.util.concurrent.PriorityBlockingQueue;
 
 public class LamportAlgorithm implements Runnable {
 
-	private int processId;
+	private final int processId;
 	private int groupSize;
 	private ExecutorService exec;
 
@@ -53,14 +53,20 @@ public class LamportAlgorithm implements Runnable {
 	 */
 	private BlockingQueue<Event> eventReceived;
 
+	/**
+	 * Constructor makes sure that the Lamport Algorithm works fine
+	 * 
+	 * @param processId
+	 * @param groupLength
+	 * @param messageQueue
+	 */
 	public LamportAlgorithm(int processId, int groupLength, BlockingQueue<Message> messageQueue) {
 		this.logicalClock = 0;
 		this.processId = processId;
 		this.groupSize = groupLength;
 		this.messageDelivered = messageQueue;
 		lock = new Object();
-		Comparator<Message> c = new Order();
-		writeQueue = new PriorityBlockingQueue<>(11, c);
+		writeQueue = new PriorityBlockingQueue<>(11, new Order());
 		ackCount = new ConcurrentHashMap<>();
 		eventReceived = new LinkedBlockingQueue<Event>();
 		reliableChannel = new ReliableChannel(processId, groupLength, eventReceived);
@@ -69,16 +75,27 @@ public class LamportAlgorithm implements Runnable {
 		exec.submit(this);
 	}
 
+	/**
+	 * Send a write message with a new element to the other processes
+	 * 
+	 * @param dataId
+	 * @param integerValue
+	 */
 	public synchronized void write(int dataId, int integerValue) {
 		logicalClock++;
 		Message message = new Message(processId, logicalClock, dataId, integerValue);
 		reliableChannel.enqueueEvent(message);
-		System.out.println("Message: " + message.getEventId() + " with element: <" + message.getDataId() + ","
-				+ message.getIntegerValue() + ">" + " Sent");
+		System.out.println("Sending message: " + message.getEventId() + " with element: <" + message.getDataId() + ","
+				+ message.getIntegerValue() + ">");
 		messageHandler(message);
 	}
 
-	public void receiveEvent() throws InterruptedException {
+	/**
+	 * Receive and manage an event sent from other processes
+	 * 
+	 * @throws InterruptedException
+	 */
+	private void receiveEvent() throws InterruptedException {
 		while (true) {
 			Event e = eventReceived.take();
 			lamportClockUpdate(e);
@@ -89,23 +106,39 @@ public class LamportAlgorithm implements Runnable {
 			} else if (e instanceof LamportAck) {
 				System.out.println("Ack: " + e.getEventId() + " related to message: "
 						+ ((LamportAck) e).getIdRelatedMessage() + " Received");
-				ackHandler((LamportAck) e);
+				ackCountHandler((LamportAck) e);
 			}
 		}
 	}
 
+	/**
+	 * Updates the lamport clock according to the rules
+	 * 
+	 * @param e
+	 */
 	private void lamportClockUpdate(Event e) {
 		logicalClock = Math.max(logicalClock, e.getLogicalClock()) + 1;
 	}
 
+	/**
+	 * Handles a message received, so it writes the message in the queue and send
+	 * the ack
+	 * 
+	 * @param m
+	 */
 	private synchronized void messageHandler(Message m) {
 		writeQueue.put(m);
-		//printQueue();
-		ackHandler(new LamportAck(processId, logicalClock, m.getLogicalClock(), m.getProcessId()));
-		exec.submit(new CheckSameClock(m));
+		// printQueue();
+		ackCountHandler(new LamportAck(processId, logicalClock, m.getLogicalClock(), m.getProcessId()));
+		exec.submit(new MonitorAck(m));
 	}
 
-	private synchronized void ackHandler(LamportAck a) {
+	/**
+	 * Adds the received ack to the count
+	 * 
+	 * @param a
+	 */
+	private synchronized void ackCountHandler(LamportAck a) {
 		Integer count = ackCount.get(a.getIdRelatedMessage());
 		if (count == null) {
 			ackCount.put(a.getIdRelatedMessage(), 1);
@@ -129,23 +162,35 @@ public class LamportAlgorithm implements Runnable {
 		}
 	}
 
-	private synchronized void sendAck(Message messageToAck) {
-		logicalClock++;
-		LamportAck ack = new LamportAck(processId, logicalClock, messageToAck.getLogicalClock(),
-				messageToAck.getProcessId());
-		reliableChannel.enqueueEvent(ack);
-	}
-
-	private class CheckSameClock implements Runnable {
+	/**
+	 * The thread of that class polls until there are the conditions to send the
+	 * ack, and then sends the ack
+	 *
+	 */
+	private class MonitorAck implements Runnable {
 
 		private Message messageToCheck;
 		private boolean condition1;
 		private boolean condition2;
 
-		public CheckSameClock(Message message) {
+		public MonitorAck(Message message) {
 			messageToCheck = message;
 			condition1 = false;
 			condition2 = false;
+		}
+
+		/**
+		 * Sends the ack related to the message
+		 * 
+		 * @param messageToAck
+		 */
+		private synchronized void sendAck(Message messageToAck) {
+			logicalClock++;
+			LamportAck ack = new LamportAck(processId, logicalClock, messageToAck.getLogicalClock(),
+					messageToAck.getProcessId());
+			reliableChannel.enqueueEvent(ack);
+			System.out.println("Sending ack  " + ack.getEventId() + " for message " + messageToAck.getEventId()
+					+ " with element: <" + messageToAck.getDataId() + "," + messageToAck.getIntegerValue() + ">");
 		}
 
 		@Override
@@ -188,6 +233,10 @@ public class LamportAlgorithm implements Runnable {
 		}
 	}
 
+	/**
+	 * Constantly checks if the element at the head of the queue has received all
+	 * the acks, if so, it deliver to the server the message
+	 */
 	private class CheckQueue implements Runnable {
 		@Override
 		public void run() {
@@ -209,6 +258,11 @@ public class LamportAlgorithm implements Runnable {
 			}
 		}
 
+		/**
+		 * Returns true if the head of the queue has received all the acks
+		 * 
+		 * @return
+		 */
 		public boolean checkQueueHead() {
 			if (writeQueue.isEmpty())
 				return false;
@@ -222,17 +276,16 @@ public class LamportAlgorithm implements Runnable {
 
 	}
 
-/*	private void printQueue() {
-		System.out.println("Queue:\n");
-		for (Message m : writeQueue) {
-			System.out.println("Message: " + m.getEventId());
-			if (m == writeQueue.element())
-				System.out.println(" (queue head)\n");
-			else
-				System.out.println("\n");
-		}
-	}*/
-	
+	/*
+	 * private void printQueue() { System.out.println("Queue:\n"); for (Message m :
+	 * writeQueue) { System.out.println("Message: " + m.getEventId()); if (m ==
+	 * writeQueue.element()) System.out.println(" (queue head)\n"); else
+	 * System.out.println("\n"); } }
+	 */
+
+	/**
+	 * Defines the correct criterion to order the queue
+	 */
 	private class Order implements Comparator<Message> {
 
 		@Override

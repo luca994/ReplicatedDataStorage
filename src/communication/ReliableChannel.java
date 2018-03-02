@@ -25,20 +25,23 @@ public class ReliableChannel {
 
 	private static final int MULTICAST_PORT = 10000;
 	private static final String MULTICAST_ADDRESS = "224.0.0.1";
+	private static final long RETRANSMISSION_TIME = 1000;
+	private static final int PACKET_LOSS_PERCENTAGE = 0;
 
 	private final int processId;
 	private int groupSize;
-	private MulticastSocket multicastSocket;
-	private Thread receiverThread;
-	private Thread senderThread;
-	private int currentSequenceNumber;
+
 	private BlockingQueue<Event> eventReceivedQueue;
 	private BlockingQueue<Event> eventToSend;
+
+	private MulticastSocket multicastSocket;
+	private int currentSequenceNumber;
 	private Semaphore sem;
+
 	/**
 	 * This variable is used as a mutex
 	 */
-	private Object lock1;
+	private Object lock;
 
 	/**
 	 * This is the list of eventId of all the events received
@@ -61,7 +64,7 @@ public class ReliableChannel {
 
 	/**
 	 * The key of the element represents the sequenceNumber, the value is the
-	 * corresponding acks received
+	 * corresponding number of acks received
 	 * 
 	 */
 	private ConcurrentMap<Integer, Integer> acksReceived;
@@ -75,13 +78,6 @@ public class ReliableChannel {
 	 * @param lamportAlgorithm
 	 */
 	public ReliableChannel(int processId, int groupLength, BlockingQueue<Event> eventReceivedQueue) {
-		this.receiverThread = new Thread(new Receiver());
-		this.senderThread = new Thread(new Sender());
-		try {
-			startConnection(MULTICAST_PORT, MULTICAST_ADDRESS);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
 		this.eventReceivedQueue = eventReceivedQueue;
 		this.eventToSend = new LinkedBlockingQueue<Event>();
 		this.groupSize = groupLength;
@@ -92,7 +88,12 @@ public class ReliableChannel {
 		this.currentSequenceNumber = 0;
 		this.eventReceived = new ArrayList<String>();
 		this.sem = new Semaphore(0);
-		this.lock1 = new Object();
+		this.lock = new Object();
+		try {
+			startConnection(MULTICAST_PORT, MULTICAST_ADDRESS);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	/**
@@ -105,10 +106,15 @@ public class ReliableChannel {
 	public void startConnection(int multicastPort, String multicastAddress) throws IOException {
 		multicastSocket = new MulticastSocket(multicastPort);
 		multicastSocket.joinGroup(InetAddress.getByName(multicastAddress));
-		receiverThread.start();
-		senderThread.start();
+		new Thread(new Receiver()).start();
+		new Thread(new Sender()).start();
 	}
 
+	/**
+	 * Enqueues an event to be sent
+	 * 
+	 * @param e
+	 */
 	public void enqueueEvent(Event e) {
 		try {
 			eventToSend.put(e);
@@ -117,28 +123,10 @@ public class ReliableChannel {
 		}
 	}
 
-	private class Sender implements Runnable {
-
-		@Override
-		public void run() {
-			while (true) {
-				Event e;
-				try {
-					e = eventToSend.take();
-					sendMessage(e);
-					sem.acquire();
-					System.out.println("Message: " + e.getEventId() + " Delivered2");
-				} catch (InterruptedException e1) {
-					e1.printStackTrace();
-				}
-			}
-		}
-	}
-
 	/**
 	 * Set sequenceNumber to the object, then sends it to the multicast group, it
-	 * adds the message to the historyBuffer then returns. We have added a limit of
-	 * 128 bytes for a datagram packet.
+	 * adds the message to the historyBuffer then returns. The limit for a datagram
+	 * packet is set to 128 bytes.
 	 * 
 	 * @param msg
 	 *            the message to be sent
@@ -154,22 +142,10 @@ public class ReliableChannel {
 			acksReceived.put(currentSequenceNumber, 0);
 			Timer timer = new Timer();
 			timers.put(currentSequenceNumber, timer);
-			timer.schedule(new Retransmit(currentSequenceNumber), 1000);
+			timer.schedule(new Retransmit(currentSequenceNumber), RETRANSMISSION_TIME);
 		}
-		/*
-		 * DELAY if (new Random().nextBoolean()) { Thread t = new Thread(new Runnable()
-		 * {
-		 * 
-		 * @Override public void run() { try { Thread.sleep(1500); ByteArrayOutputStream
-		 * bos = new ByteArrayOutputStream(512); ObjectOutput out = null; out = new
-		 * ObjectOutputStream(bos); out.writeObject(msg); out.flush(); byte[] bytes =
-		 * bos.toByteArray(); DatagramPacket packet = new DatagramPacket(bytes,
-		 * bytes.length, InetAddress.getByName(MULTICAST_ADDRESS), MULTICAST_PORT);
-		 * multicastSocket.send(packet); bos.close(); } catch (IOException |
-		 * InterruptedException e) { e.printStackTrace(); } } }); t.start(); return; }
-		 */
 
-		if (new Random().nextBoolean())
+		if (new Random().nextInt(100) >= 100 - PACKET_LOSS_PERCENTAGE)
 			return;
 
 		try {
@@ -189,8 +165,7 @@ public class ReliableChannel {
 	}
 
 	/**
-	 * this method updates the sequence number and assigns the new one to the event
-	 * in input
+	 * Updates the sequence number and assigns the new one to the event in input
 	 * 
 	 * @param msg
 	 */
@@ -200,8 +175,7 @@ public class ReliableChannel {
 	}
 
 	/**
-	 * this method is called by the receiver to dispatch the event to the right
-	 * method
+	 * Dispatches the events to the right handler method
 	 * 
 	 * @param e
 	 */
@@ -216,9 +190,9 @@ public class ReliableChannel {
 	}
 
 	/**
-	 * this method manage the event of receiving an acknowledgement. It increments
-	 * the counter of acks for that message and if it's the last ack it stops the
-	 * related timer and remove the message from the history buffer
+	 * Manages the event of receiving an acknowledgement. It increments the counter
+	 * of acks for that message and if it's the last ack it stops the related timer
+	 * and remove the message from the history buffer
 	 * 
 	 * @param ack
 	 */
@@ -226,23 +200,16 @@ public class ReliableChannel {
 		if (ack.getProcessId() == processId || ack.getTargetProcId() != processId)
 			return;
 		else {
-			synchronized (lock1) {
+			synchronized (lock) {
 				int targetSN = ack.getTargetSequenceNumber();
 				Integer numberOfAcks = acksReceived.get(targetSN);
-				if (numberOfAcks == null) {
-					System.out.println("Big Delay?!");
+				if (numberOfAcks == null)
 					return;
-				}
 				numberOfAcks++;
 				acksReceived.replace(targetSN, numberOfAcks);
-				// System.out.println("Ack from process " + ack.getProcessId() + " received!");
 				if (numberOfAcks == groupSize - 1) {
 					timers.get(targetSN).cancel();
 					timers.remove(targetSN);
-					// System.out.println(
-					// "Message: " + historyBuffer.get(targetSN).getEventId() + " delivered to all
-					// the members");
-					System.out.println("Message: " + historyBuffer.get(targetSN).getEventId() + " Delivered1");
 					historyBuffer.remove(targetSN);
 					acksReceived.remove(targetSN);
 					sem.release();
@@ -252,8 +219,8 @@ public class ReliableChannel {
 	}
 
 	/**
-	 * this method sends a multicast ack to the members of the multicast and puts
-	 * the message, if it is new, in the event recevied queue
+	 * Sends a multicast ack to the members of the multicast and puts the message,
+	 * if it is new, in the event received queue
 	 * 
 	 * @param message
 	 */
@@ -268,7 +235,8 @@ public class ReliableChannel {
 			ack.setTargetProcId(msgPid);
 			sendMessage(ack);
 			if (newEvent(message)) {
-				eventReceived.add(message.eventId);
+				eventReceived.add(message.getEventId());
+				wipeEventReceived(message);
 				try {
 					eventReceivedQueue.put(message);
 				} catch (InterruptedException e) {
@@ -279,8 +247,7 @@ public class ReliableChannel {
 	}
 
 	/**
-	 * This method checks if the message received is new or it is been already
-	 * received
+	 * Checks if the message received is new or it is been already received
 	 * 
 	 * @param message
 	 * @return
@@ -290,9 +257,28 @@ public class ReliableChannel {
 	}
 
 	/**
-	 * this is the task used to schedule the retransmission of a message
+	 * It must be called when a new event is received. Removes the last event
+	 * received from the same process with a lesser logical clock
 	 * 
-	 * @author luca
+	 * @param lastEventReceived
+	 */
+	private void wipeEventReceived(Event lastEventReceived) {
+		String toRemove = null;
+		for (String s : eventReceived) {
+			String[] logClockAndPid = s.split("\\.");
+			Integer logClock = Integer.parseInt(logClockAndPid[0]);
+			Integer pid = Integer.parseInt(logClockAndPid[1]);
+			if (logClock < lastEventReceived.getLogicalClock() && pid == lastEventReceived.getProcessId()) {
+				toRemove = s;
+				break;
+			}
+		}
+		if (toRemove != null)
+			eventReceived.remove(toRemove);
+	}
+
+	/**
+	 * Is the task used to schedule the retransmission of a message
 	 *
 	 */
 	private class Retransmit extends TimerTask {
@@ -304,12 +290,10 @@ public class ReliableChannel {
 
 		@Override
 		public void run() {
-			synchronized (lock1) {
+			synchronized (lock) {
 				if (acksReceived.get(sequenceNumber) == null)
 					return;
 				Event retransmission = historyBuffer.get(sequenceNumber);
-				// System.out.println("Time Expired, retransmission... \nEvent: " +
-				// retransmission.eventId);
 				historyBuffer.remove(sequenceNumber);
 				acksReceived.remove(sequenceNumber);
 				sendMessage(retransmission);
@@ -318,10 +302,30 @@ public class ReliableChannel {
 	}
 
 	/**
-	 * this is the runnable class used to create the object that receives the
-	 * multicast messages
-	 * 
-	 * @author luca
+	 * Is the Class runnable that sends the message that has been enqueued by
+	 * following a FIFO logic
+	 *
+	 */
+	private class Sender implements Runnable {
+
+		@Override
+		public void run() {
+			while (true) {
+				Event e;
+				try {
+					e = eventToSend.take();
+					sendMessage(e);
+					sem.acquire();
+					System.out.println("Event " + e.getEventId() + " delivered to all the members");
+				} catch (InterruptedException e1) {
+					e1.printStackTrace();
+				}
+			}
+		}
+	}
+
+	/**
+	 * Is the Class runnable that receives the events
 	 *
 	 */
 	private class Receiver implements Runnable {
