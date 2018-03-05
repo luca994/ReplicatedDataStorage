@@ -116,7 +116,7 @@ public class LamportAlgorithm implements Runnable {
 	 * 
 	 * @param e
 	 */
-	private void lamportClockUpdate(Event e) {
+	private synchronized void lamportClockUpdate(Event e) {
 		logicalClock = Math.max(logicalClock, e.getLogicalClock()) + 1;
 	}
 
