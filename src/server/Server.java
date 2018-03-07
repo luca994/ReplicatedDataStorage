@@ -24,12 +24,13 @@ public class Server {
 
 	public String getValue(int dataId) {
 		String value=lamportAlgorithm.read(dataId);
-		if(value==null)
-			value = database.get(dataId).toString();
-		if (value == null)
+		if(value!=null)
+			return value;
+		Integer v = database.get(dataId);
+		if (v == null)
 			return null;
 		else
-			return value;
+			return v.toString();
 	}
 
 	public void write(int dataId, int integerValue) {

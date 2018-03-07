@@ -85,19 +85,25 @@ public class LamportAlgorithm implements Runnable {
 		logicalClock++;
 		Message message = new Message(processId, logicalClock, dataId, integerValue);
 		reliableChannel.enqueueEvent(message);
-		System.out.println("Sending message: " + message.getEventId() + " with element: <" + message.getDataId() + ","
+		System.out.println("[SENDING] Message: " + message.getEventId() + " with element: <" + message.getDataId() + ","
 				+ message.getIntegerValue() + ">");
 		messageHandler(message);
 	}
-	
-	
+
+	/**
+	 * looks for an update message with the specified dataId and with the most
+	 * recent lamport clock, if there isn't one it returns null
+	 * 
+	 * @param dataId
+	 * @return
+	 */
 	public String read(int dataId) {
-		Message m1= new Message(processId, 0, 0, 0);
-		for(Message m: writeQueue) {
-			if(m.getDataId()==dataId && m.getProcessId()==processId && m.getLogicalClock()>m1.getLogicalClock())
-				m1=m;
+		Message m1 = new Message(processId, 0, 0, 0);
+		for (Message m : writeQueue) {
+			if (m.getDataId() == dataId && m.getProcessId() == processId && m.getLogicalClock() > m1.getLogicalClock())
+				m1 = m;
 		}
-		if(m1.getLogicalClock()!=0)
+		if (m1.getLogicalClock() != 0)
 			return Integer.valueOf(m1.getIntegerValue()).toString();
 		else
 			return null;
@@ -113,12 +119,12 @@ public class LamportAlgorithm implements Runnable {
 			Event e = eventReceived.take();
 			lamportClockUpdate(e);
 			if (e instanceof Message) {
-				System.out.println("Message: " + e.getEventId() + " with element: <" + ((Message) e).getDataId() + ","
-						+ ((Message) e).getIntegerValue() + ">" + " Received");
+				System.out.println("[RECEIVED] Message: " + e.getEventId() + " with element: <" + ((Message) e).getDataId() + ","
+						+ ((Message) e).getIntegerValue() + ">");
 				messageHandler((Message) e);
 			} else if (e instanceof LamportAck) {
-				System.out.println("Ack: " + e.getEventId() + " related to message: "
-						+ ((LamportAck) e).getIdRelatedMessage() + " Received");
+				System.out.println("[RECEIVED] Ack: " + e.getEventId() + " related to message: "
+						+ ((LamportAck) e).getIdRelatedMessage());
 				ackCountHandler((LamportAck) e);
 			}
 		}
@@ -202,7 +208,7 @@ public class LamportAlgorithm implements Runnable {
 			LamportAck ack = new LamportAck(processId, logicalClock, messageToAck.getLogicalClock(),
 					messageToAck.getProcessId());
 			reliableChannel.enqueueEvent(ack);
-			System.out.println("Sending ack  " + ack.getEventId() + " for message " + messageToAck.getEventId()
+			System.out.println("[SENDING] Ack  " + ack.getEventId() + " for message " + messageToAck.getEventId()
 					+ " with element: <" + messageToAck.getDataId() + "," + messageToAck.getIntegerValue() + ">");
 		}
 
@@ -258,8 +264,8 @@ public class LamportAlgorithm implements Runnable {
 					while (checkQueueHead()) {
 						Message m = writeQueue.poll();
 						messageDelivered.put(m);
-						System.out.println("Message: " + m.getEventId() + " with element: <" + m.getDataId() + ","
-								+ m.getIntegerValue() + ">" + " Written on DB");
+						System.out.println("[DB WRITE] Message: " + m.getEventId() + " with element: <" + m.getDataId() + ","
+								+ m.getIntegerValue() + ">");
 						ackCount.remove(m.getEventId());
 					}
 					synchronized (lock) {

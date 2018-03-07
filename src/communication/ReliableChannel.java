@@ -316,7 +316,6 @@ public class ReliableChannel {
 					e = eventToSend.take();
 					sendMessage(e);
 					sem.acquire();
-					System.out.println("Event " + e.getEventId() + " delivered to all the members");
 				} catch (InterruptedException e1) {
 					e1.printStackTrace();
 				}
