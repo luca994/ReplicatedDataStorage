@@ -34,7 +34,7 @@ public class Server {
 			return value.toString();
 	}
 
-	public synchronized void write(int dataId, int integerValue) {
+	public void write(int dataId, int integerValue) {
 		lastWrite.put(dataId, integerValue);
 		lamportAlgorithm.write(dataId, integerValue);
 	}
