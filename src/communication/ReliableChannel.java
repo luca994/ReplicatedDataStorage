@@ -26,7 +26,7 @@ public class ReliableChannel {
 	private static final int MULTICAST_PORT = 10000;
 	private static final String MULTICAST_ADDRESS = "224.0.0.1";
 	private static final long RETRANSMISSION_TIME = 1000;
-	private static final int PACKET_LOSS_PERCENTAGE = 0;
+	private static final int PACKET_LOSS_PERCENTAGE = 80;
 
 	private int processId;
 	private int groupSize;

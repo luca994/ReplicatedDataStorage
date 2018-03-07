@@ -14,23 +14,28 @@ public class Server {
 	private int processId;
 	private LamportAlgorithm lamportAlgorithm;
 	private BlockingQueue<Message> messageDelivered;
+	private ConcurrentMap<Integer, Integer> lastWrite;
 
 	public Server(int processId, int groupLength) {
 		this.processId = processId;
 		this.messageDelivered = new LinkedBlockingQueue<Message>();
 		lamportAlgorithm = new LamportAlgorithm(processId, groupLength, messageDelivered);
 		database = new ConcurrentHashMap<>();
+		this.lastWrite = new ConcurrentHashMap<Integer, Integer>();
 	}
 
 	public String getValue(int dataId) {
-		Integer value = database.get(dataId);
+		Integer value = lastWrite.get(dataId);
+		if (value == null)
+			value = database.get(dataId);
 		if (value == null)
 			return null;
 		else
 			return value.toString();
 	}
 
-	public void write(int dataId, int integerValue) {
+	public synchronized void write(int dataId, int integerValue) {
+		lastWrite.put(dataId, integerValue);
 		lamportAlgorithm.write(dataId, integerValue);
 	}
 
