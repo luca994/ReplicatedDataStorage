@@ -89,6 +89,19 @@ public class LamportAlgorithm implements Runnable {
 				+ message.getIntegerValue() + ">");
 		messageHandler(message);
 	}
+	
+	
+	public String read(int dataId) {
+		Message m1= new Message(processId, 0, 0, 0);
+		for(Message m: writeQueue) {
+			if(m.getDataId()==dataId && m.getProcessId()==processId && m.getLogicalClock()>m1.getLogicalClock())
+				m1=m;
+		}
+		if(m1.getLogicalClock()!=0)
+			return Integer.valueOf(m1.getIntegerValue()).toString();
+		else
+			return null;
+	}
 
 	/**
 	 * Receive and manage an event sent from other processes
